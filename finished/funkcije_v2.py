@@ -6,8 +6,8 @@ def izracun_kotov(b, p, l_1, l_2, h, psi_x_deg, psi_y_deg):
     if np.sin(psi_y) == 1 or np.sin(psi_y) == -1:
         raise ValueError('Nepravilna vrednost omega_x!')
     
-    omega_x = np.sin(psi_y)
-    omega_y = -np.sin(psi_x)*np.cos(psi_y)
+    #omega_x = np.sin(psi_y)
+    #omega_y = -np.sin(psi_x)*np.cos(psi_y)
     psi_z = np.atan(-np.sin(psi_x)*np.sin(psi_y)/(np.cos(psi_x)+np.cos(psi_y)))
 
     R = np.array([[np.cos(psi_y)*np.cos(psi_z), -np.cos(psi_y)*np.sin(psi_z), np.sin(psi_y)],
@@ -53,7 +53,7 @@ def izracun_kotov(b, p, l_1, l_2, h, psi_x_deg, psi_y_deg):
     En_3_p = 2*np.atan2(-B_3+np.sqrt(A_3**2+B_3**2-C_3**2), C_3-A_3)
     En_3_m = 2*np.atan2(-B_3-np.sqrt(A_3**2+B_3**2-C_3**2), C_3-A_3)
 
-    print(np.rad2deg(psi_x), np.rad2deg(psi_y), np.rad2deg(psi_z))
+    print(np.rad2deg(En_1_p), np.rad2deg(En_2_p), np.rad2deg(En_3_p))
 
     return np.rad2deg(En_1_p), np.rad2deg(En_2_p), np.rad2deg(En_3_p)
 
