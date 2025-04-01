@@ -3,12 +3,14 @@ import cv2
 from finished import kamera
 import serial
 import time
+from finished import kinematika
+from finished import communicator_v2
 
 # Parameters
-b = 0.071589  # m
-p = 0.21215  # m
-l_1 = 0.16200  # m
-l_2 = 0.2525  # m
+b = 0.071589 # m
+p = 0.116 # m
+l_1 = 0.08254 # m
+l_2 = 0.1775 # m
 
 mtx = np.array([[649.84070017, 0.00000000e+00, 326.70849136],
                 [0.00000000e+00, 650.79575464, 306.13746377],
@@ -16,8 +18,11 @@ mtx = np.array([[649.84070017, 0.00000000e+00, 326.70849136],
 dist = np.array([-0.4586199,  0.20583847,   0.00120806,  0.00507029,  -0.0083358])
 
 
+serial_port = 'COM5'
+ser = serial.Serial(serial_port, 115200, timeout=1)
 
 CV = kamera.CV2Wrapper(camera_index=1, window_name='Webcam feed', camera_matrix=mtx, distortion_coefficients=dist)
+com = communicator_v2.SerialCommunication(ser=ser, normal_acceleration=100)  # communication object iz communicator_v2
 
 
 time.sleep(0.5)
@@ -75,6 +80,16 @@ cv2.setMouseCallback(CV.window_name, mouse_callback)
 
 a, b, c = False, False, False  # Flags to track points
 
+start_config = np.array([0.19, 0, 0])
+resting_position=kinematika.izracun_kotov(b, p, l_1, l_2, start_config[0], 0, 0)
+resting_steps=kinematika.deg2steps(resting_position)
+com.enable_steppers()
+time.sleep(1)
+com.move_to_position(resting_steps)
+time.sleep(5)
+print('Searching for ball')
+time.sleep(1)
+
 while True:
     ret, frame = CV.cap.read()
     if not ret:
@@ -121,3 +136,8 @@ while True:
 
 
 cv2.destroyAllWindows()
+
+resting_position=kinematika.izracun_kotov(b, p, l_1, l_2, 0.15, 0, 0)
+resting_steps=kinematika.deg2steps(resting_position)
+com.move_to_position(resting_steps)
+time.sleep(5)

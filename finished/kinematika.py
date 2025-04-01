@@ -121,13 +121,22 @@ class PID_controller():
         self.K_d = K_d
 
         self.old_pos = start_position
+
+    def reset_old_pos(self, position):
+        '''
+        Reset old position. 
+        
+        '''
+        self.old_pos = position
+
          
     def calculate(self, current_position=np.ndarray, target_position=np.ndarray, time_step=np.float64):
         '''
         Calculate required angle to reach target position after one time step.
         
         '''
-        self.current_error = (target_position-current_position) *  np.array([1, -1]) # axis transform for right-handed coordinate frame
+        
+        self.current_error = (target_position-current_position)
         #self.adjust_PID()
         proportional = self.K_p*self.current_error
         self.integral = self.integral + self.current_error*time_step
@@ -137,7 +146,7 @@ class PID_controller():
 
         # pristop z D term za pozicijo, ne error
         #derivative = (error-self.previous_error)/time_step
-        derivative = -(current_position-self.old_pos)/time_step * np.array([1, -1])
+        derivative = -(current_position-self.old_pos)/time_step
         derivative_term = self.K_d*derivative
 
         new_tilt_angle = proportional+integral_term+derivative_term 

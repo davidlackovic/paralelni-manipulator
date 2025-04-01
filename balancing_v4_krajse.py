@@ -73,9 +73,9 @@ delay = 0.07
 
 # set 2
 
-acceleration = 140
-feedrate = 1200
-delay = 0.0
+#acceleration = 140
+#feedrate = 1200
+#delay = 0.0
 
 
 
@@ -156,6 +156,7 @@ ret, frame = CV.cap.read()
 processed_frame, current_position, current_velocity = CV.process_frame(frame, lower_color, upper_color, alpha)
 if np.all(current_position!=None):
     CV.target_pos = current_position
+    PID.reset_old_pos(current_position)
 else:
     print('couldn\'t set target position')
 
@@ -179,11 +180,12 @@ while True:
         if np.all(old_position != None):
             if np.linalg.norm(current_position - old_position) <= 4: # check if error <= 3
                 current_position = old_position
+            #TODO: to se lahko vse dela v kamera.py, da ni tukaj raztreseno
             #print(f'napaka je: {np.linalg.norm(current_position - old_position)}')
         
         
         new_angle = PID.calculate(current_position=current_position, target_position=CV.target_pos, time_step=time_step)
-        print(f'integral: {PID.integral}')
+        #print(f'integral: {PID.integral}')
 
         #if np.linalg.norm(PID.current_error) < 150:
             #new_angle += (1-(PID.current_error/150))*0.0027*np.sin(5*2*np.pi*time.time())
@@ -209,7 +211,7 @@ while True:
                 time.sleep(delay)
                 time_to_move = np.max(limited_steps - old_steps)/(feedrate/60)
 
-                print(f'moved {time.strftime('%Y-%m-%d %H:%M:%S')}.{int(time.time() * 1000) % 1000:03d}')         
+                #print(f'moved {time.strftime('%Y-%m-%d %H:%M:%S')}.{int(time.time() * 1000) % 1000:03d}')         
 
                 current_angle = clipped_new_angle
                 old_move_time = time.time_ns()

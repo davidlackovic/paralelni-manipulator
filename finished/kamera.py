@@ -2,7 +2,12 @@ import cv2
 import numpy as np
     
 class CV2Wrapper():
-    def __init__(self, camera_index=0, window_name='Webcam feed', camera_matrix=np.array([0]), distortion_coefficients=np.array([0])):
+    def __init__(self, camera_index=0, window_name='Webcam feed', camera_matrix=np.array([0]), distortion_coefficients=np.array([0]), exposure_value=np.float64(-9.4)):
+        '''Class for handling camera input and processing frames.
+        Exposura value is set to -9.4 by default, but can be changed by passing a different value in the constructor.
+        
+        Note: camera reference frames are defined here and are obtained from rotation_calibration.py.
+        '''
         self.cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
         self.window_name=window_name
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640) 
@@ -24,10 +29,14 @@ class CV2Wrapper():
         self.distortion_coefficients = distortion_coefficients
 
         self.target_pos = np.array([0,0])
+        self.old_pos = None
 
         # offsets for setting reference frame
-        self.x_offset = 332
-        self.y_offset = 282
+        self.x_offset = 334
+        self.y_offset = 287
+
+        self.exposure_value_fixed = exposure_value
+        
 
 
         if not self.cap.isOpened():
@@ -46,7 +55,7 @@ class CV2Wrapper():
         '''Opens a window with a slider to calibrate exposure. If lower_color and upper_color are passed tracking of the ball will be tested too.'''
         cv2.namedWindow("Exposure calibration")
         cv2.createTrackbar("Exposure", "Exposure calibration", 100, 200, self.adjust_exposure)
-        self.cap.set(cv2.CAP_PROP_EXPOSURE, -8.1)
+        self.cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure_value_fixed)
 
         
         while True:
@@ -54,7 +63,6 @@ class CV2Wrapper():
             if not ret:
                 print("Error: Could not read frame")
                 break
-            
             processed_frame = cv2.resize(frame, (640, 480), interpolation=cv2.INTER_LINEAR)
             processed_frame = cv2.undistort(processed_frame, self.camera_matrix, self.distortion_coefficients)
             hsv = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2HSV)
@@ -127,11 +135,11 @@ class CV2Wrapper():
 
                     cv2.circle(processed_frame, (int(cx), int(cy)), 2, (0, 0, 0), 2)
                     cv2.circle(processed_frame, (int(cx), int(cy)), int(self.smooth_r), (0, 255, 0), 1)
-                    cv2.circle(processed_frame, (self.target_pos[0]+self.x_offset, self.target_pos[1]+self.y_offset), 3, (0,0,255), -1)
+                    cv2.circle(processed_frame, (self.target_pos[0]+self.x_offset, -self.target_pos[1]+self.y_offset), 3, (0,0,255), -1)
 
 
 
-                    return processed_frame, np.array([int(offset_cx), int(offset_cy)]), np.array([vx, vy])
+                    return processed_frame, np.array([int(offset_cx), -int(offset_cy)]), np.array([vx, vy])
 
             else:
                 print("No ball detected")
@@ -146,7 +154,7 @@ class CV2Wrapper():
         '''
         if event == cv2.EVENT_LBUTTONDOWN:
             print(f'Target position set to {int(x- self.x_offset), int(y- self.y_offset)}')
-            self.target_pos = np.array([int(x- self.x_offset), int(y- self.y_offset)])
+            self.target_pos = np.array([int(x- self.x_offset), -int(y- self.y_offset)])
 
     def set_mouse_callback(self):    
         cv2.setMouseCallback(self.window_name, self.mouse_callback)
