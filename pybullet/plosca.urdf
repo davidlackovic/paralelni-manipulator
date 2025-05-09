@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<robot name="plosca">
+    <link name="base_link">
+        <collision>
+        <geometry>
+        <cylinder length="0.02" radius="0.25"/>
+        </geometry>
+        </collision>
+        <visual>
+        <geometry>
+        <cylinder length="0.02" radius="0.25"/>
+        </geometry>
+        <material name="blue">
+            <color rgba="0 0 1 0.2"/>
+        </material>
+        </visual>
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+    </link>
+
+    <link name="zgornja_plosca">
+        <collision>
+            <geometry>
+                <cylinder length="0.004" radius="0.2"/>
+            </geometry>
+        </collision>
+        <visual>
+            <geometry>
+                <cylinder length="0.004" radius="0.2"/>
+            </geometry>
+        <material name="yellow">
+            <color rgba="1 1 0 1"/>
+        </material>
+        </visual>
+        <origin xyz="0.0 0 0" rpy="0.0 0.0 0.0"/>
+    </link>
+
+
+  <joint name="joint_X" type="revolute">
+    <parent link="base_link"/>
+    <child link="vmesni_link"/>
+    <origin xyz="0 0 0.19" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-1" upper="1" effort="100" velocity="1.0"/>
+  </joint>
+
+  <link name="vmesni_link"/>
+
+  <joint name="joint_Y" type="revolute">
+    <parent link="vmesni_link"/>
+    <child link="zgornja_plosca"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1" upper="1" effort="100" velocity="1.0"/>
+  </joint>
+
+</robot>

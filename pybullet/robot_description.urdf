@@ -1,0 +1,221 @@
+<?xml version="1.0"?>
+<robot name="3_RRS_parallel_manipulator">
+  <link name="base_link">
+    <collision>
+      <geometry>
+       <cylinder length="0.02" radius="0.25"/>
+      </geometry>
+    </collision>
+    <visual>
+      <geometry>
+       <cylinder length="0.02" radius="0.25"/>
+      </geometry>
+       <material name="blue">
+        <color rgba="0 0 1 0.2"/>
+      </material>
+    </visual>
+    <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+  </link>
+
+  <!-- First vertical cylinder -->
+  <link name="roka1_lower">
+    <collision>
+      <geometry>
+        <cylinder radius="0.01" length="0.08254"/>
+      </geometry>
+    </collision>
+
+    <visual>
+      <geometry>
+        <cylinder radius="0.01" length="0.08254"/>
+      </geometry>
+      <material name="green">
+        <color rgba="0 1 0 1"/>
+      </material>
+      <origin xyz="0 0 0.04127" rpy="0 0 0"/>
+
+    </visual>
+    
+  </link>
+
+  <joint name="joint1" type="revolute">
+    <parent link="base_link"/>
+    <child link="roka1_lower"/>
+    <origin xyz="0 -0.071589 0.03" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0.0" upper="2" effort="100" velocity="1.0"/>
+  </joint>
+
+    <!-- Second vertical cylinder -->
+  <link name="roka2_lower">
+    <collision>
+      <geometry>
+        <cylinder radius="0.01" length="0.08254"/>
+      </geometry>
+    </collision>
+
+    <visual>
+      <geometry>
+        <cylinder radius="0.01" length="0.08254"/>
+      </geometry>
+      <material name="green">
+        <color rgba="0 1 0 1"/>
+      </material>
+      <origin xyz="0 0 0.04127" rpy="0 0 0"/>
+
+    </visual>
+    
+  </link>
+
+  <joint name="joint2" type="revolute">
+    <parent link="base_link"/>
+    <child link="roka2_lower"/>
+    <origin xyz="-0.0619979 0.0357945 0.03" rpy="0 0 0"/>
+    <axis xyz="-0.5 -0.866025 0"/>
+    <limit lower="0.0" upper="2" effort="100" velocity="1.0"/>
+  </joint>
+
+      <!-- Third vertical cylinder -->
+  <link name="roka3_lower">
+    <collision>
+      <geometry>
+        <cylinder radius="0.01" length="0.08254"/>
+      </geometry>
+    </collision>
+
+    <visual>
+      <geometry>
+        <cylinder radius="0.01" length="0.08254"/>
+      </geometry>
+      <material name="green">
+        <color rgba="0 1 0 1"/>
+      </material>
+      <origin xyz="0 0 0.04127" rpy="0 0 0"/>
+
+    </visual>
+    
+  </link>
+
+  <joint name="joint3" type="revolute">
+    <parent link="base_link"/>
+    <child link="roka3_lower"/>
+    <origin xyz="0.0619979 0.0357945 0.03" rpy="0 0 0"/>
+    <axis xyz="-0.5 0.866025 0"/>
+    <limit lower="0.0" upper="2" effort="100" velocity="1.0"/>
+  </joint>
+
+<!-- First upper cylinder -->
+  <link name="roka1_upper">
+    <collision>
+      <geometry>
+        <cylinder radius="0.01" length="0.1775"/>
+      </geometry>
+    </collision>
+
+    <visual>
+      <geometry>
+        <cylinder radius="0.01" length="0.1775"/>
+      </geometry>
+      <material name="red">
+        <color rgba="1 0 0 1"/>
+      </material>
+      <origin xyz="0 0 0.08875" rpy="0 0 0"/>
+
+    </visual>
+    
+  </link>
+
+  <joint name="joint4" type="revolute">
+    <parent link="roka1_lower"/>
+    <child link="roka1_upper"/>
+    <origin xyz="0 0 0.08254" rpy="0 0 0"/>
+    <axis xyz="-1 0 0"/>
+    <limit lower="0" upper="3.14" effort="0.0" velocity="1.0"/>
+  </joint>
+
+  <!-- Second upper cylinder -->
+  <link name="roka2_upper">
+    <collision>
+      <geometry>
+        <cylinder radius="0.01" length="0.1775"/>
+      </geometry>
+    </collision>
+
+    <visual>
+      <geometry>
+        <cylinder radius="0.01" length="0.1775"/>
+      </geometry>
+      <material name="red">
+        <color rgba="1 0 0 1"/>
+      </material>
+      <origin xyz="0 0 0.08875" rpy="0 0 0"/>
+      
+
+    </visual>
+    
+  </link>
+
+  <joint name="joint5" type="revolute">
+    <parent link="roka2_lower"/>
+    <child link="roka2_upper"/>
+    <origin xyz="0 0 0.08254" rpy="0 0 0"/>
+    <axis xyz="0.5 0.866025 0"/>
+    <limit lower="0" upper="3.14" effort="0.0" velocity="1.0"/>
+  </joint>
+
+    <!-- Third upper cylinder -->
+  <link name="roka3_upper">
+    <collision>
+      <geometry>
+        <cylinder radius="0.01" length="0.1775"/>
+      </geometry>
+    </collision>
+
+    <visual>
+      <geometry>
+        <cylinder radius="0.01" length="0.1775"/>
+      </geometry>
+      <material name="red">
+        <color rgba="1 0 0 1"/>
+      </material>
+      <origin xyz="0 0 0.08875" rpy="0 0 0"/>
+      
+
+    </visual>
+    
+  </link>
+
+  <joint name="joint6" type="revolute">
+    <parent link="roka3_lower"/>
+    <child link="roka3_upper"/>
+    <origin xyz="0 0 0.08254" rpy="0 0 0"/>
+    <axis xyz="0.5 -0.866025 0"/>
+    <limit lower="0" upper="3.14" effort="0.0" velocity="1.0"/>
+  </joint>
+
+  <link name="zgornja_ploskev">
+    <collision>
+      <geometry>
+       <cylinder length="0.004" radius="0.15"/>
+      </geometry>
+    </collision>
+    <visual>
+      <geometry>
+       <cylinder length="0.004" radius="0.15"/>
+      </geometry>
+       <material name="yellow">
+        <color rgba="1 1 0 1"/>
+      </material>
+    </visual>
+    <origin xyz="0.0 0 0" rpy="0.0 0.0 0.0"/>
+  </link>
+
+<!--Sfericni zglob 1 -->
+<joint name="sph_joint_11" type="revolute">
+    <parent link="roka1_upper"/>
+    <child link="zgornja_ploskev"/>
+    <origin xyz="0 0.071589 0.1775" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="3.14" effort="0.0" velocity="1.0"/>
+  </joint>
+</robot>

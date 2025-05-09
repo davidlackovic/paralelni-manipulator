@@ -41,6 +41,8 @@ class SerialCommunication():
         time.sleep(0.01)
         ser.write(bytes('M115\n', 'utf-8'))
         time.sleep(0.01)
+        ser.write(bytes('M18 S2000\n', 'utf-8'))
+        time.sleep(0.01)
         response = ser.readlines()
 
         if any("FIRMWARE_NAME" in line.decode() for line in response):
@@ -50,7 +52,7 @@ class SerialCommunication():
 
 
 
-    def move_to_position(self, pos, feedrate=None):
+    def move_to_position(self, pos, feedrate=None, verbose=False):
         '''Move axes to a (x, y, z) position.'''
         
         if len(pos) != 3:
@@ -70,7 +72,8 @@ class SerialCommunication():
             code += 'F700'
 
         self.ser.write(bytes(f'{code}\n', 'utf-8'))
-        print(f'Sent: {code}')
+        if verbose:
+            print(f'Sent: {code}')
         
 
     def send_gcode(self, code):

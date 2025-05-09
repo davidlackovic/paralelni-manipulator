@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 def izracun_kotov(b, p, l_1, l_2, h, psi_x_deg, psi_y_deg):
     # transformation from "in the x/y axis direction" to "around x/y axis"
@@ -128,6 +129,7 @@ class PID_controller():
         
         '''
         self.old_pos = position
+        self.old_time = time.time()
 
          
     def calculate(self, current_position=np.ndarray, target_position=np.ndarray, time_step=np.float64):
@@ -135,7 +137,7 @@ class PID_controller():
         Calculate required angle to reach target position after one time step.
         
         '''
-        
+        time_step = time.time()-self.old_time
         self.current_error = (target_position-current_position)
         #self.adjust_PID()
         proportional = self.K_p*self.current_error
@@ -144,11 +146,11 @@ class PID_controller():
 
         integral_term = self.K_i*self.integral
 
-        # pristop z D term za pozicijo, ne error
+        # pristop z D term za pozicijo, ne error - PROBI ŠE TO NAZAJ
         #derivative = (error-self.previous_error)/time_step
         derivative = -(current_position-self.old_pos)/time_step
         derivative_term = self.K_d*derivative
-
+        #print(f'proportional: {proportional}, integral: {integral_term}, derivative: {derivative_term}')
         new_tilt_angle = proportional+integral_term+derivative_term 
 
         self.previous_error = self.current_error
