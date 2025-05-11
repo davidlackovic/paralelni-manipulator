@@ -55,9 +55,13 @@ ball_start_orientation = p.getQuaternionFromEuler([0, 0, 0])
 ball_id = p.loadURDF('pybullet/ball.urdf', ball_start_pos, ball_start_orientation, useFixedBase=False)
 p.changeDynamics(ball_id, -1, lateralFriction=0.01, rollingFriction=0.0001, restitution=0.002)
 
-simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id)
+simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, steps_per_frame=8)
 #model = PPO("MlpPolicy", simEnv, verbose=1)
-model = PPO.load("ppo_manipulator_1.zip", simEnv)  # Load the trained model
+model = PPO.load("8_spf_2.7M_x2.zip", simEnv)  # Load the trained model
+
+# 0 = end after termination, 1 = repeat after termination
+test_mode = 1 
+
 
 
 obs, _ = simEnv.reset()
@@ -68,7 +72,10 @@ reward_sum = 0
 while not done:
     action, _ = model.predict(obs)
     obs, reward, terminated, truncated, _ = simEnv.step(action)
-    done = terminated or truncated
+    if (terminated or truncated) and test_mode==0:
+        done = True
+    elif (terminated or truncated) and test_mode==1:
+        simEnv.reset()
     reward_sum += reward
     i += 1
 

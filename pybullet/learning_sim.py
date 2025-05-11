@@ -4,8 +4,13 @@ import numpy as np
 import time
 import simEnvironment
 from stable_baselines3 import PPO
+import matplotlib.pyplot as plt
+from stable_baselines3.common.vec_env import VecNormalize
+from stable_baselines3.common.vec_env import DummyVecEnv
+
 
 # Initialize PyBullet
+#p.connect(p.DIRECT)
 p.connect(p.GUI)
 p.setAdditionalSearchPath(pybullet_data.getDataPath())
 p.setGravity(0, 0, -9.81)
@@ -55,13 +60,28 @@ ball_start_orientation = p.getQuaternionFromEuler([0, 0, 0])
 ball_id = p.loadURDF('pybullet/ball.urdf', ball_start_pos, ball_start_orientation, useFixedBase=False)
 p.changeDynamics(ball_id, -1, lateralFriction=0.01, rollingFriction=0.0001, restitution=0.002)
 
-simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id)
-model = PPO("MlpPolicy", simEnv, verbose=1)
+simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, max_RTF=True, steps_per_frame=8)
+simEnv = DummyVecEnv([lambda: simEnv]) 
+simEnv = VecNormalize(simEnv, norm_obs=True, norm_reward=False)
+
+#model = PPO("MlpPolicy", simEnv, n_steps=2048, verbose=0)
+model = PPO.load("8_spf_2.7M.zip", simEnv)  # Load the trained model
+reward_logger_callback = simEnvironment.RolloutEndCallback(end_after_n_episodes=25)
 
 
-model.learn(total_timesteps=500000, progress_bar=True)
-model.save("ppo_manipulator_2")
+model.learn(total_timesteps=2700000, callback=reward_logger_callback, progress_bar=True)
+model.save("8_spf_2.7M_x2.zip")  # Save the trained model
 
 
 
 p.disconnect()
+
+
+plt.figure(figsize=(10, 5))
+plt.plot(reward_logger_callback.smoothed_rewards, label='Mean Reward', color='blue')
+plt.title('Training Progress')
+plt.xlabel('Rollout Number')
+plt.ylabel('Mean Episode Reward')
+plt.grid(True)
+plt.legend()
+plt.show()
