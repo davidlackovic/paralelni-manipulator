@@ -56,8 +56,8 @@ ball_id = p.loadURDF('pybullet/ball.urdf', ball_start_pos, ball_start_orientatio
 p.changeDynamics(ball_id, -1, lateralFriction=0.01, rollingFriction=0.0001, restitution=0.002)
 
 simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, steps_per_frame=8)
-#model = PPO("MlpPolicy", simEnv, verbose=1)
-model = PPO.load("8_spf_2.7M_x2.zip", simEnv)  # Load the trained model
+model = PPO("MlpPolicy", simEnv, verbose=1)
+#model = PPO.load("8_spf_2.7M_x2.zip", simEnv)  # Load the trained model
 
 # 0 = end after termination, 1 = repeat after termination
 test_mode = 1 

@@ -50,12 +50,12 @@ class ManipulatorSimEnv(gym.Env):
         linear_velocity, angular_velocity = p.getBaseVelocity(self.ball_id)
         #reward = 1 / (1 + np.linalg.norm(ball_position[0:2])*1e3 + np.linalg.norm(linear_velocity)*1e3)
         # reward = 10 - 100*np.linalg.norm(ball_position[0:2])**2 - 100*np.linalg.norm(linear_velocity)**2 # ful dobraaa!!
-        reward = 10 - 5000*np.linalg.norm(ball_position[0:2])**2 - 500*np.linalg.norm(linear_velocity)**2
+        reward = 10 - 2000*np.linalg.norm(ball_position[0:2])**2 - 1000*np.linalg.norm(linear_velocity)**2
         #reward = 1 - np.linalg.norm(ball_position[0:2]) - np.linalg.norm(linear_velocity)
         #reward = 1 - (1 / (1 + np.exp(10 * np.linalg.norm(ball_position[0:2])))) - (1 / (1 + np.exp(10 * np.linalg.norm(linear_velocity))))
 
         if np.linalg.norm(ball_position[0:2]) < 0.04:
-            reward += 100  # Small bonus for staying centered
+            reward += 1000  # Small bonus for staying centered
 
 
         # termination

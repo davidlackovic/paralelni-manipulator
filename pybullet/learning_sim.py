@@ -70,7 +70,7 @@ reward_logger_callback = simEnvironment.RolloutEndCallback(end_after_n_episodes=
 
 
 model.learn(total_timesteps=2700000, callback=reward_logger_callback, progress_bar=True)
-model.save("8_spf_2.7M_x2.zip")  # Save the trained model
+model.save("8_spf_2.7M_x2.1.zip")  # Save the trained model
 
 
 

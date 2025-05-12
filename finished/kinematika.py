@@ -2,6 +2,10 @@ import numpy as np
 import time
 
 def izracun_kotov(b, p, l_1, l_2, h, psi_x_deg, psi_y_deg):
+    '''Calculates arm angles for given plate orientation (inverse kinematics). \n
+    
+    psi_x_deg - angle around x axis in deg\n
+    psi_y_deg - angle around y axis in deg\n'''
     # transformation from "in the x/y axis direction" to "around x/y axis"
     psi_y = np.deg2rad(psi_x_deg)
     psi_x = -np.deg2rad(psi_y_deg)

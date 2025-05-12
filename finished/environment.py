@@ -27,6 +27,10 @@ class ManipulatorEnv(gym.Env):
         self.feedrate = feedrate
         self.delay = delay
 
+        # scaling matrix 
+        self.scaling_matrix = np.array([[1.06293e-3, 0],
+                                        [0, 1.06293e-3]])
+
 
         # window za prikazovanje
         self.show_feed = show_feed
@@ -41,22 +45,28 @@ class ManipulatorEnv(gym.Env):
 
 
         # observation space: x, y kordinati žogice
-        self.observation_space = gym.spaces.Box(low=-500, high=500, shape=(2,), dtype=np.float32) # TODO lahko dodam vx, vy in time_since_last_observation
-
-        # action space: nakloni 3 rok manipulatorja
-        #self.action_space = gym.spaces.Box(low=-2, high=8, shape=(3,), dtype=np.float32)
-        self.action_space = gym.spaces.Box(low=-1, high=1, shape=(3,), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(low=-0.4, high=0.4, shape=(2,), dtype=np.float32) # TODO lahko dodam vx, vy in time_since_last_observation
+        # action space: naklon v X in Y smeri
+        self.action_space = gym.spaces.Box(low=-0.13, high=0.13, shape=(2,), dtype=np.float32)
         
         self.ball_pos = np.array([0.0, 0.0])
 
     def step(self, action):
-        termination_circle_radius = 140 # pikslov
+        termination_circle_radius = 0.17 # pikslov
         self._step_counter = getattr(self, "_step_counter", 0) + 1
         print(f"Step {self._step_counter}")
 
+        # convert action to steps
+        # Dejanski parametri skrajšano
+        b = 0.071589 # m
+        p = 0.116 # m
+        l_1 = 0.08254 # m
+        l_2 = 0.1775 # m
+        angles = kinematika.izracun_kotov(b, p, l_1, l_2, 0.19, np.rad2deg(action[0]), np.rad2deg(action[1]))
+        steps = kinematika.deg2steps(angles)
 
         # apply action
-        self.com.move_to_position(action, feedrate=self.feedrate) # TODO: speed in acceleration?
+        self.com.move_to_position(steps, feedrate=self.feedrate) # TODO: speed in acceleration?
 
         # wait
         time.sleep(0.07) 
@@ -85,7 +95,7 @@ class ManipulatorEnv(gym.Env):
         terminated = np.linalg.norm(current_position) > termination_circle_radius 
         if terminated:
             print('Termination condition met in step().')
-        observation = current_position
+        observation = self.scaling_matrix @ current_position
 
         truncated = False # TODO: implement truncation if needed
         time.sleep(0.14) 
@@ -163,7 +173,7 @@ class ManipulatorEnv(gym.Env):
 
                     if time.time() - timer > 2:
                         print('Ball is centered, exiting reset().')
-                        observation = current_position
+                        observation = self.scaling_matrix @ current_position
                         return observation, {}
                     
                     # check if error <= 4, TODO lahko dam stran če bo treba
