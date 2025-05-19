@@ -2,11 +2,16 @@ import pybullet as p
 import pybullet_data
 import numpy as np
 import time
+import os
 import simEnvironment
 from stable_baselines3 import PPO
+from stable_baselines3 import DDPG
+from stable_baselines3 import SAC
 import matplotlib.pyplot as plt
 from stable_baselines3.common.vec_env import VecNormalize
 from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
+import pickle
 
 
 # Initialize PyBullet
@@ -60,25 +65,45 @@ ball_start_orientation = p.getQuaternionFromEuler([0, 0, 0])
 ball_id = p.loadURDF('pybullet/ball.urdf', ball_start_pos, ball_start_orientation, useFixedBase=False)
 p.changeDynamics(ball_id, -1, lateralFriction=0.01, rollingFriction=0.0001, restitution=0.002)
 
-simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, max_RTF=True, steps_per_frame=8)
+# set name of experiment
+name = 'v4'
+
+training_data_path = 'pybullet/training_data'
+folder_path = os.path.join(training_data_path, name)
+if not os.path.exists(folder_path):
+    os.makedirs(folder_path)
+
+vec_file = os.path.join(folder_path, f'{name}_vec.pkl')
+model_file = os.path.join(folder_path, f'{name}_model.zip')
+data_file = os.path.join(folder_path, f'{name}_data.pkl')
+
+
+
+simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, max_RTF=False, steps_per_frame=8, verbose=False)
 simEnv = DummyVecEnv([lambda: simEnv]) 
-simEnv = VecNormalize(simEnv, norm_obs=True, norm_reward=False)
-
-#model = PPO("MlpPolicy", simEnv, n_steps=2048, verbose=0)
-model = PPO.load("8_spf_2.7M.zip", simEnv)  # Load the trained model
-reward_logger_callback = simEnvironment.RolloutEndCallback(end_after_n_episodes=25)
+#simEnv = VecNormalize.load("pybullet/training_data/vec_normalize_v8.pkl", simEnv)
+simEnv = VecNormalize(simEnv, norm_obs=True, norm_reward=True)
+simEnv.save(vec_file) # save vectorize data
 
 
-model.learn(total_timesteps=2700000, callback=reward_logger_callback, progress_bar=True)
-model.save("8_spf_2.7M_x2.1.zip")  # Save the trained model
+model = PPO("MlpPolicy", simEnv, n_steps=4096, verbose=0, learning_rate=1e-4)
+#model = PPO.load("pybullet/training_data/v3/v3_model.zip", simEnv)  # Load the trained model
+reward_logger_callback = simEnvironment.RolloutEndCallback(simEnv)
+
+
+model.learn(total_timesteps=40000000, callback=reward_logger_callback, progress_bar=True)
+model.save(model_file)  # Save the trained model
 
 
 
 p.disconnect()
 
+with open(data_file, 'wb') as f:
+    pickle.dump(reward_logger_callback.learning_rewards, f)
+
 
 plt.figure(figsize=(10, 5))
-plt.plot(reward_logger_callback.smoothed_rewards, label='Mean Reward', color='blue')
+plt.plot(reward_logger_callback.learning_rewards, label='Mean Reward', color='blue')
 plt.title('Training Progress')
 plt.xlabel('Rollout Number')
 plt.ylabel('Mean Episode Reward')
