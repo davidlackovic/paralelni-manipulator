@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from stable_baselines3.common.vec_env import VecNormalize
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
+from stable_baselines3.common.evaluation import evaluate_policy
 import pickle
 
 
@@ -58,7 +59,7 @@ p.resetDebugVisualizerCamera(
 
 
 # Get ball position from URDF definition
-ball_start_pos = [0, 0, 0.2]
+ball_start_pos = [0, 0, 0.23]
 ball_start_orientation = p.getQuaternionFromEuler([0, 0, 0])
 
 # Spawn the ball as a separate dynamic object
@@ -66,7 +67,7 @@ ball_id = p.loadURDF('pybullet/ball.urdf', ball_start_pos, ball_start_orientatio
 p.changeDynamics(ball_id, -1, lateralFriction=0.01, rollingFriction=0.0001, restitution=0.002)
 
 # set name of experiment
-name = 'v4'
+name = 'v1.5'
 
 training_data_path = 'pybullet/training_data'
 folder_path = os.path.join(training_data_path, name)
@@ -79,24 +80,26 @@ data_file = os.path.join(folder_path, f'{name}_data.pkl')
 
 
 
-simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, max_RTF=False, steps_per_frame=8, verbose=False)
+simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, max_RTF=True, steps_per_frame=8, verbose=False)
 simEnv = DummyVecEnv([lambda: simEnv]) 
 #simEnv = VecNormalize.load("pybullet/training_data/vec_normalize_v8.pkl", simEnv)
 simEnv = VecNormalize(simEnv, norm_obs=True, norm_reward=True)
-simEnv.save(vec_file) # save vectorize data
 
 
-model = PPO("MlpPolicy", simEnv, n_steps=4096, verbose=0, learning_rate=1e-4)
+
+model = PPO("MlpPolicy", simEnv, n_steps=4096, verbose=0)
 #model = PPO.load("pybullet/training_data/v3/v3_model.zip", simEnv)  # Load the trained model
 reward_logger_callback = simEnvironment.RolloutEndCallback(simEnv)
 
 
-model.learn(total_timesteps=40000000, callback=reward_logger_callback, progress_bar=True)
-model.save(model_file)  # Save the trained model
-
-
+model.learn(total_timesteps=40_000_000, callback=reward_logger_callback, progress_bar=True)
+model.save(model_file)  # save the trained model
+simEnv.save(vec_file) # save vectorize data
 
 p.disconnect()
+
+
+
 
 with open(data_file, 'wb') as f:
     pickle.dump(reward_logger_callback.learning_rewards, f)
@@ -110,3 +113,39 @@ plt.ylabel('Mean Episode Reward')
 plt.grid(True)
 plt.legend()
 plt.show()
+
+'''
+simEnv.envs[0].max_RTF=False
+
+obs = simEnv.reset()
+done = False
+i = 0
+reward_sum = 0  
+
+
+# 0 = end after termination, 1 = repeat after termination
+test_mode = 1
+while not done:
+    action, _ = model.predict(obs, deterministic=True) # True ne dodaja šuma
+    obs, reward, terminated, truncated = simEnv.step(action)
+    keys = p.getKeyboardEvents()
+    if ord('r') in keys and keys[ord('r')] & p.KEY_WAS_TRIGGERED:
+        print("Resetting...")
+        obs = simEnv.reset()
+
+    #print(f"Step: {i}, Action: {action}, Reward: {reward}")
+        
+    #time.sleep(0.1)
+    #for vecEnv
+     # Unwrap the values from the vectorized form
+    terminated = terminated[0]
+    truncated = truncated[0]
+    reward = reward[0]
+    if terminated and test_mode==0:
+        done = True
+    elif terminated and test_mode==1:
+        obs = simEnv.reset()
+        i=0
+    reward_sum += reward
+    i += 1
+'''
