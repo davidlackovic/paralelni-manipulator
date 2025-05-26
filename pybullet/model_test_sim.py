@@ -2,8 +2,12 @@ import pybullet as p
 import pybullet_data
 import numpy as np
 import time
+import os
 import simEnvironment
 from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import VecNormalize
+from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.evaluation import evaluate_policy
 
 # Initialize PyBullet
 p.connect(p.GUI)
@@ -48,34 +52,78 @@ p.resetDebugVisualizerCamera(
 
 
 # Get ball position from URDF definition
-ball_start_pos = [0, 0, 0.2]
+ball_start_pos = [0, 0, 0.23]
 ball_start_orientation = p.getQuaternionFromEuler([0, 0, 0])
 
 # Spawn the ball as a separate dynamic object
 ball_id = p.loadURDF('pybullet/ball.urdf', ball_start_pos, ball_start_orientation, useFixedBase=False)
 p.changeDynamics(ball_id, -1, lateralFriction=0.01, rollingFriction=0.0001, restitution=0.002)
 
-simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, steps_per_frame=8)
-model = PPO("MlpPolicy", simEnv, verbose=1)
-#model = PPO.load("8_spf_2.7M_x2.zip", simEnv)  # Load the trained model
+
+# set name of experiment
+name = 'v1.5'
+
+training_data_path = 'pybullet/training_data'
+folder_path = os.path.join(training_data_path, name)
+vec_file = os.path.join(folder_path, f'{name}_vec.pkl')
+model_file = os.path.join(folder_path, f'{name}_model.zip')
+
+
+simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, steps_per_frame=8, verbose=True)
+simEnv = DummyVecEnv([lambda: simEnv])
+
+# Load the VecNormalize object
+simEnv = VecNormalize.load(vec_file, simEnv)
+#simEnv = VecNormalize(simEnv, norm_obs=True, norm_reward=False)
+
+simEnv.training = False # Ne normalnizira več na nove podatke
+simEnv.norm_reward = False
+
+
+#model = PPO("MlpPolicy", simEnv, verbose=1)
+model = PPO.load(model_file, simEnv)  # Load the trained model
+
+#model.policy.set_training_mode(False)
+
+model.set_env(simEnv)
 
 # 0 = end after termination, 1 = repeat after termination
-test_mode = 1 
+test_mode = 1
 
 
 
-obs, _ = simEnv.reset()
+obs = simEnv.reset()
 done = False
 i = 0
 reward_sum = 0  
 
+
+print("Starting evaluation...")
+m, sigma = evaluate_policy(model, simEnv, n_eval_episodes=10, deterministic=True)
+print(f"Evaluation results: mean reward: {m}, std deviation: {sigma}")
+time.sleep(10)
+
 while not done:
-    action, _ = model.predict(obs)
-    obs, reward, terminated, truncated, _ = simEnv.step(action)
-    if (terminated or truncated) and test_mode==0:
+    action, _ = model.predict(obs, deterministic=True) # True ne dodaja šuma
+    obs, reward, terminated, truncated = simEnv.step(action)
+    keys = p.getKeyboardEvents()
+    if ord('r') in keys and keys[ord('r')] & p.KEY_WAS_TRIGGERED:
+        print("Resetting...")
+        obs = simEnv.reset()
+
+    #print(f"Step: {i}, Action: {action}, Reward: {reward}")
+        
+    #time.sleep(0.1)
+    #for vecEnv
+     # Unwrap the values from the vectorized form
+    terminated = terminated[0]
+    truncated = truncated[0]
+    reward = reward[0]
+    if terminated and test_mode==0:
         done = True
-    elif (terminated or truncated) and test_mode==1:
-        simEnv.reset()
+    elif terminated and test_mode==1:
+        obs = simEnv.reset()
+        i=0
     reward_sum += reward
     i += 1
 
