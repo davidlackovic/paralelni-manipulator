@@ -58,16 +58,16 @@ p.resetDebugVisualizerCamera(
 )
 
 
-# Get ball position from URDF definition
+# Get ball position from URDF 
 ball_start_pos = [0, 0, 0.23]
 ball_start_orientation = p.getQuaternionFromEuler([0, 0, 0])
 
 # Spawn the ball as a separate dynamic object
 ball_id = p.loadURDF('pybullet/ball.urdf', ball_start_pos, ball_start_orientation, useFixedBase=False)
-p.changeDynamics(ball_id, -1, lateralFriction=0.01, rollingFriction=0.0001, restitution=0.002)
+p.changeDynamics(ball_id, -1, lateralFriction=1e-5, rollingFriction=1e-8, restitution=0.002)
 
 # set name of experiment
-name = 'v1.5'
+name = 'v1.7'
 
 training_data_path = 'pybullet/training_data'
 folder_path = os.path.join(training_data_path, name)

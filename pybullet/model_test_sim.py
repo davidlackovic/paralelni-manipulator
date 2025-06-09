@@ -57,11 +57,11 @@ ball_start_orientation = p.getQuaternionFromEuler([0, 0, 0])
 
 # Spawn the ball as a separate dynamic object
 ball_id = p.loadURDF('pybullet/ball.urdf', ball_start_pos, ball_start_orientation, useFixedBase=False)
-p.changeDynamics(ball_id, -1, lateralFriction=0.01, rollingFriction=0.0001, restitution=0.002)
+p.changeDynamics(ball_id, -1, lateralFriction=1e-5, rollingFriction=1e-8, restitution=0.002)
 
 
 # set name of experiment
-name = 'v1.5'
+name = 'v1.7'
 
 training_data_path = 'pybullet/training_data'
 folder_path = os.path.join(training_data_path, name)
@@ -69,7 +69,7 @@ vec_file = os.path.join(folder_path, f'{name}_vec.pkl')
 model_file = os.path.join(folder_path, f'{name}_model.zip')
 
 
-simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, steps_per_frame=8, verbose=True)
+simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, steps_per_frame=16, verbose=True)
 simEnv = DummyVecEnv([lambda: simEnv])
 
 # Load the VecNormalize object
@@ -98,10 +98,6 @@ i = 0
 reward_sum = 0  
 
 
-print("Starting evaluation...")
-m, sigma = evaluate_policy(model, simEnv, n_eval_episodes=10, deterministic=True)
-print(f"Evaluation results: mean reward: {m}, std deviation: {sigma}")
-time.sleep(10)
 
 while not done:
     action, _ = model.predict(obs, deterministic=True) # True ne dodaja šuma

@@ -9,7 +9,7 @@ class SerialCommunication():
        - max_speed (default 2500)
        - max_acceleration (default 200)
     '''
-    def __init__(self, ser, max_speed=5000, max_acceleration=200, normal_acceleration=50):
+    def __init__(self, ser, max_speed=10000, max_acceleration=1000, normal_acceleration=50):
         '''Setup sequence:
             -max speed M203
             -max accel M201

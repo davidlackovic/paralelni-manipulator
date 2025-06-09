@@ -5,6 +5,8 @@ import time
 import pybullet as p
 from stable_baselines3.common.callbacks import EventCallback
 from collections import deque
+from datetime import datetime
+
 
 class ManipulatorSimEnv(gym.Env):
     '''Class for creating a simulated Parallel Manipulator environment.
@@ -29,7 +31,7 @@ class ManipulatorSimEnv(gym.Env):
 
         self.verbose = verbose
 
-        self.max_tilt_per_frame = np.array([0.025, 0.025]) # maximum tilt per frame in radians
+        self.max_tilt_per_frame = np.array([0.02, 0.02]) # maximum tilt per frame in radians
         self.previous_action = np.zeros(2) # old tilt values for X and Y axes
         
 
@@ -40,13 +42,18 @@ class ManipulatorSimEnv(gym.Env):
         
 
     def step(self, action):
+        # print time
+
+        now = datetime.now()
+        formatted_time = now.strftime("%Y-%m-%d %H:%M:%S") + f".{int(now.microsecond / 1000):03d}"
+        print(formatted_time)
         # clamp action to maximum tilt per frame
         clipped_action = np.clip(action, self.previous_action-self.max_tilt_per_frame, self.previous_action+self.max_tilt_per_frame)
         self.previous_action = clipped_action # update previous action
 
         # apply action
-        p.setJointMotorControl2(self.robot_id, self.joint_X, p.POSITION_CONTROL, targetPosition=clipped_action[0], force=0.7)
-        p.setJointMotorControl2(self.robot_id, self.joint_Y, p.POSITION_CONTROL, targetPosition=clipped_action[1], force=0.7)
+        p.setJointMotorControl2(self.robot_id, self.joint_X, p.POSITION_CONTROL, targetPosition=clipped_action[0], force=1e30, positionGain=0.8, velocityGain=1.0)
+        p.setJointMotorControl2(self.robot_id, self.joint_Y, p.POSITION_CONTROL, targetPosition=clipped_action[1], force=1e30, positionGain=0.8, velocityGain=1.0)
 
 
         termination_circle_radius = 0.17 # m
@@ -72,7 +79,7 @@ class ManipulatorSimEnv(gym.Env):
         #reward = self.gauss_reward_function(ball_position[0:2], 10, 0.09)*self.gauss_reward_function(linear_velocity, 10, 0.09) 
         #reward = self.gauss_reward_function(ball_position[0:2], 1000, 0.007)*self.gauss_reward_function(linear_velocity, 10, 0.01) 
         
-        reward = self._step_counter + self.gauss_reward_function(ball_position[0:2], 50, 0.03)*self.gauss_reward_function(linear_velocity, 50, 0.01) 
+        reward = self._step_counter + self.gauss_reward_function(ball_position[0:2], 100, 0.03)*self.gauss_reward_function(linear_velocity, 50, 0.01) 
 
         #re-worked reward system
         #reward = self._step_counter - 2000*np.linalg.norm(ball_position[0:2])**2 * np.linalg.norm(linear_velocity)**2
@@ -80,8 +87,11 @@ class ManipulatorSimEnv(gym.Env):
         if np.linalg.norm(ball_position[0:2]) < 0.03 and np.linalg.norm(linear_velocity) < 0.01:
            reward += 50  # Small bonus for staying centered
 
+        # real plate angle
+        
+        plate_orientation = np.array([p.getJointState(self.robot_id, self.joint_X)[0], p.getJointState(self.robot_id, self.joint_Y)[0]])
         if self.verbose:
-            print(f'current reward: {reward}, step counter: {self._step_counter}, action: {clipped_action}')
+            print(f'Position: {ball_position}, Velocity: {linear_velocity}, Action: {clipped_action}, Plate angle: {plate_orientation[0:2]} Reward: {reward}')
         # termination
         terminated = np.linalg.norm(ball_position[0:2]) > termination_circle_radius 
         if terminated:

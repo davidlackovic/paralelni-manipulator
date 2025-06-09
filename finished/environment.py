@@ -7,11 +7,11 @@ from finished import kinematika
 from finished import communicator_v2
 import serial
 import time
-
+from datetime import datetime
 
 
 class ManipulatorEnv(gym.Env):
-    def __init__(self, kamera_obj, comm_obj, PID_obj, feedrate, delay, show_feed=False):
+    def __init__(self, kamera_obj, comm_obj, PID_obj, feedrate, delay, show_feed=False, verbose=False):
 
         super(ManipulatorEnv, self).__init__()
         self.CV = kamera_obj
@@ -29,7 +29,7 @@ class ManipulatorEnv(gym.Env):
 
         # scaling matrix 
         self.scaling_matrix = np.array([[1.06293e-3, 0],
-                                        [0, 1.06293e-3]])
+                                        [0, 1.06293e-3]]) # TODO popravi, ker je različno med x in y 
 
 
         # window za prikazovanje
@@ -42,19 +42,38 @@ class ManipulatorEnv(gym.Env):
         theta = np.deg2rad(30.75)
         self.R = np.array([[np.cos(theta), -np.sin(theta)],
                         [np.sin(theta), np.cos(theta)]])
+        
+        # debugging
+        self.verbose = verbose
+
+        # for clipping max tilt per frame
+        self.max_tilt_per_frame = np.array([0.015, 0.015]) # maximum tilt per frame in radians
+        self.previous_action = np.zeros(2) # old tilt values for X and Y axes
 
 
-        # observation space: x, y kordinati žogice
-        self.observation_space = gym.spaces.Box(low=-0.4, high=0.4, shape=(2,), dtype=np.float32) # TODO lahko dodam vx, vy in time_since_last_observation
-        # action space: naklon v X in Y smeri
-        self.action_space = gym.spaces.Box(low=-0.13, high=0.13, shape=(2,), dtype=np.float32)
+
+        self.observation_space = gym.spaces.Box(low=-0.4, high=0.4, shape=(6,), dtype=np.float32) # dodane še vx, vy, nakloni plošče thetaX, thetaY
+        
+        self.action_space = gym.spaces.Box(low=-0.1, high=0.1, shape=(2,), dtype=np.float32) # naklon v X in Y smeri
         
         self.ball_pos = np.array([0.0, 0.0])
 
     def step(self, action):
-        termination_circle_radius = 0.17 # pikslov
+        # print time
+        now = datetime.now()
+        formatted_time = now.strftime("%Y-%m-%d %H:%M:%S") + f".{int(now.microsecond / 1000):03d}"
+        print(formatted_time)
+
+        termination_circle_radius = 0.25
         self._step_counter = getattr(self, "_step_counter", 0) + 1
-        print(f"Step {self._step_counter}")
+
+        action = np.array([action[1], -action[0]]) # pretvori iz naklo_okoli_osi v naklon_v_smeri_osi, ampak še vedno v K.S. kamere
+        action = action @ self.R # rotiraj akcijo z rotacijsko matriko - v K.S. robota
+
+
+        #clip action
+        clipped_action = np.clip(action, self.previous_action-self.max_tilt_per_frame, self.previous_action+self.max_tilt_per_frame)
+        self.previous_action = clipped_action # update previous action
 
         # convert action to steps
         # Dejanski parametri skrajšano
@@ -62,14 +81,14 @@ class ManipulatorEnv(gym.Env):
         p = 0.116 # m
         l_1 = 0.08254 # m
         l_2 = 0.1775 # m
-        angles = kinematika.izracun_kotov(b, p, l_1, l_2, 0.19, np.rad2deg(action[0]), np.rad2deg(action[1]))
+        angles = kinematika.izracun_kotov(b, p, l_1, l_2, 0.19, np.rad2deg(clipped_action[0]), np.rad2deg(clipped_action[1]))
         steps = kinematika.deg2steps(angles)
 
         # apply action
         self.com.move_to_position(steps, feedrate=self.feedrate) # TODO: speed in acceleration?
 
         # wait
-        time.sleep(0.07) 
+        time.sleep(self.delay) 
 
         # observation
         ret, frame = self.CV.cap.read()
@@ -82,33 +101,55 @@ class ManipulatorEnv(gym.Env):
         if np.all(current_position == None):
             print("No ball detected, trying again...")
             processed_frame, current_position, current_velocity = self.CV.process_frame(frame, self.lower_color, self.upper_color, self.alpha)
-        
-        if np.all(current_position != None):
-            print(f'Current error: {np.linalg.norm(current_position)}')
+            
+            if np.all(current_position == None):
+                print('Ball not detected after processing frame, exiting...')
+                return [0, 0, 0, 0, 0, 0], 0, True, False, {}
+        self.frame = processed_frame
 
-        
+        #if np.all(current_position != None):
+            #print(f'Current error: {np.linalg.norm(current_position)}')
+
+        if np.all(current_position != None):
+            current_position_scaled = self.scaling_matrix @ current_position # scaled to meters
+            current_velocity_scaled = self.scaling_matrix @ current_velocity # scaled to m/s
+            x, y = current_position_scaled # x, y position of the ball in meters
+            vx, vy = current_velocity_scaled # x, y velocity of the ball in m/s
+            thetax, thetay = action # nakloni plošče v radianih
+
         # reward
-        #reward = 50 - np.linalg.norm(current_position) # TODO reward je lahko tudi odvisen od hitrosti žogice
-        reward = 1 / (1 + np.linalg.norm(current_position)) 
+        reward = self._step_counter + self.gauss_reward_function(current_position_scaled, 50, 0.03)*self.gauss_reward_function(current_velocity_scaled, 50, 0.01)
+
+        if np.linalg.norm(current_position_scaled) < 0.04 and np.linalg.norm(current_velocity_scaled) < 0.01:
+           reward += 50  # Small bonus for staying centered
 
         # termination
-        terminated = np.linalg.norm(current_position) > termination_circle_radius 
+        terminated = np.linalg.norm(current_position_scaled) > termination_circle_radius 
         if terminated:
             print('Termination condition met in step().')
-        observation = self.scaling_matrix @ current_position
+            reward = reward - 100 # give a penalty for termination
+        
+        observation = [x, y, vx, vy, thetax, thetay]
+        
 
-        truncated = False # TODO: implement truncation if needed
-        time.sleep(0.14) 
+        if self.verbose:
+            print(f'Position: {current_position_scaled}, Radius: {np.linalg.norm(current_position_scaled)},  Velocity: {current_velocity_scaled}, Action: {clipped_action}, Reward: {reward}')
+        
 
+        truncated = False # obsolete
+        #time.sleep(0.14) 
+    
+        
         return observation, reward, terminated, truncated, {}
     
-    def reset(self, *, seed=None, options=None):
+    def reset(self, seed=None, options=None):
         #Dejanski parametri skrajšano
         b = 0.071589 # m
         p = 0.116 # m
         l_1 = 0.08254 # m
         l_2 = 0.1775 # m
 
+        self.previous_action = np.zeros(2) # reset old tilt values for X and Y axes
 
         print('Resetting environment...')
         # izravna ploščo
@@ -171,13 +212,16 @@ class ManipulatorEnv(gym.Env):
 
 
 
-                    if time.time() - timer > 2:
+                    if time.time() - timer > 0.8:
                         print('Ball is centered, exiting reset().')
-                        observation = self.scaling_matrix @ current_position
+                        x, y = self.scaling_matrix @ current_position # scaled to meters
+                        vx, vy = self.scaling_matrix @ current_velocity # scaled to m/s
+                        observation = [x, y, vx, vy, 0, 0]
+                        self._step_counter = 0 # reset step counter
                         return observation, {}
                     
                     # check if error <= 4, TODO lahko dam stran če bo treba
-                    if np.linalg.norm(current_position - self.CV.pos_cam_old) <= 4:
+                    if np.linalg.norm(current_position - self.CV.pos_cam_old) <= 10:
                         current_position = self.CV.pos_cam_old
                         
                 if np.all(current_position != None):
@@ -236,6 +280,13 @@ class ManipulatorEnv(gym.Env):
         self.com.disable_steppers()
         self.CV.cap.release()
         cv2.destroyAllWindows()
+    
+    def gauss_reward_function(self, ball_position, a, sigma):
+        '''Gauss reward function type a * exp(-error^2/(2*sigma^2)) \n
+        
+        NOTE: position is passed to np.linalg.norm() within this function'''
+        reward = a * np.exp(-np.linalg.norm(ball_position[0:2])**2 / (2 * sigma**2))
+        return reward
 
        
      
