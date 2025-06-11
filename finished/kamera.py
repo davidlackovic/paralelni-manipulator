@@ -110,7 +110,7 @@ class CV2Wrapper():
     
 
 
-    def process_frame(self, frame, lower_color, upper_color, alpha, flickering=3):
+    def process_frame(self, frame, lower_color, upper_color, alpha):
         '''Process the frame and return processed frame, ball location and velocity.
         '''
         vx, vy = 0, 0

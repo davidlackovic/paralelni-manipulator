@@ -6,7 +6,8 @@ import os
 import simEnvironment
 from stable_baselines3 import PPO
 from stable_baselines3 import DDPG
-from stable_baselines3 import SAC
+from stable_baselines3 import A2C
+from stable_baselines3 import TD3
 import matplotlib.pyplot as plt
 from stable_baselines3.common.vec_env import VecNormalize
 from stable_baselines3.common.vec_env import DummyVecEnv
@@ -67,7 +68,7 @@ ball_id = p.loadURDF('pybullet/ball.urdf', ball_start_pos, ball_start_orientatio
 p.changeDynamics(ball_id, -1, lateralFriction=1e-5, rollingFriction=1e-8, restitution=0.002)
 
 # set name of experiment
-name = 'v1.7'
+name = 'v2.0_TD3'
 
 training_data_path = 'pybullet/training_data'
 folder_path = os.path.join(training_data_path, name)
@@ -80,14 +81,21 @@ data_file = os.path.join(folder_path, f'{name}_data.pkl')
 
 
 
-simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, max_RTF=True, steps_per_frame=8, verbose=False)
+simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, max_RTF=True, steps_per_frame=17, verbose=True, wait_to_finish_moves=False)
 simEnv = DummyVecEnv([lambda: simEnv]) 
 #simEnv = VecNormalize.load("pybullet/training_data/vec_normalize_v8.pkl", simEnv)
 simEnv = VecNormalize(simEnv, norm_obs=True, norm_reward=True)
 
 
 
-model = PPO("MlpPolicy", simEnv, n_steps=4096, verbose=0)
+#model = PPO("MlpPolicy", simEnv, n_steps=2048, verbose=0)
+model = TD3("MlpPolicy", simEnv, 
+            buffer_size=50_000,          # Smaller buffer for faster updates (if short episodes)
+            learning_starts=5_000,       # Start training earlier
+            train_freq=(256, "step"),    # More frequent updates
+            gradient_steps=64,           # More updates per train call
+            batch_size=256,              # Larger batches
+            policy_kwargs=dict(net_arch=[256, 256]))
 #model = PPO.load("pybullet/training_data/v3/v3_model.zip", simEnv)  # Load the trained model
 reward_logger_callback = simEnvironment.RolloutEndCallback(simEnv)
 

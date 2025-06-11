@@ -28,8 +28,8 @@ class ManipulatorEnv(gym.Env):
         self.delay = delay
 
         # scaling matrix 
-        self.scaling_matrix = np.array([[1.06293e-3, 0],
-                                        [0, 1.06293e-3]]) # TODO popravi, ker je različno med x in y 
+        self.scaling_matrix = np.array([[7.6923e-4, 0],
+                                        [0, 7.6923e-4]]) # popravljeno
 
 
         # window za prikazovanje
@@ -47,12 +47,12 @@ class ManipulatorEnv(gym.Env):
         self.verbose = verbose
 
         # for clipping max tilt per frame
-        self.max_tilt_per_frame = np.array([0.015, 0.015]) # maximum tilt per frame in radians
+        self.max_tilt_per_frame = np.array([1, 1]) # maximum tilt per frame in radians
         self.previous_action = np.zeros(2) # old tilt values for X and Y axes
 
 
 
-        self.observation_space = gym.spaces.Box(low=-0.4, high=0.4, shape=(6,), dtype=np.float32) # dodane še vx, vy, nakloni plošče thetaX, thetaY
+        self.observation_space = gym.spaces.Box(low=-0.4, high=0.4, shape=(8,), dtype=np.float32) # dodane še vx, vy, nakloni plošče thetaX, thetaY
         
         self.action_space = gym.spaces.Box(low=-0.1, high=0.1, shape=(2,), dtype=np.float32) # naklon v X in Y smeri
         
@@ -67,12 +67,15 @@ class ManipulatorEnv(gym.Env):
         termination_circle_radius = 0.25
         self._step_counter = getattr(self, "_step_counter", 0) + 1
 
-        action = np.array([action[1], -action[0]]) # pretvori iz naklo_okoli_osi v naklon_v_smeri_osi, ampak še vedno v K.S. kamere
+        action = np.array([action[1], -action[0]]) # pretvori iz naklon_okoli_osi v naklon_v_smeri_osi, ampak še vedno v K.S. kamere
+        #action = np.array([-action[0], action[1]]) # obrnjeno ker se nagiba v napačno smer - zakaj? nevem 
+        # zdej dela ok v X smeri, v Y smeri sploh ne spreminja actiona
         action = action @ self.R # rotiraj akcijo z rotacijsko matriko - v K.S. robota
 
 
         #clip action
         clipped_action = np.clip(action, self.previous_action-self.max_tilt_per_frame, self.previous_action+self.max_tilt_per_frame)
+        self.action_delta = clipped_action - self.previous_action
         self.previous_action = clipped_action # update previous action
 
         # convert action to steps
@@ -104,7 +107,7 @@ class ManipulatorEnv(gym.Env):
             
             if np.all(current_position == None):
                 print('Ball not detected after processing frame, exiting...')
-                return [0, 0, 0, 0, 0, 0], 0, True, False, {}
+                return [0, 0, 0, 0, 0, 0, 0, 0], 0, True, False, {}
         self.frame = processed_frame
 
         #if np.all(current_position != None):
@@ -118,7 +121,7 @@ class ManipulatorEnv(gym.Env):
             thetax, thetay = action # nakloni plošče v radianih
 
         # reward
-        reward = self._step_counter + self.gauss_reward_function(current_position_scaled, 50, 0.03)*self.gauss_reward_function(current_velocity_scaled, 50, 0.01)
+        reward = self.gauss_reward_function(current_position_scaled, 100, 0.03)*self.gauss_reward_function(current_velocity_scaled, 50, 0.01)
 
         if np.linalg.norm(current_position_scaled) < 0.04 and np.linalg.norm(current_velocity_scaled) < 0.01:
            reward += 50  # Small bonus for staying centered
@@ -129,11 +132,11 @@ class ManipulatorEnv(gym.Env):
             print('Termination condition met in step().')
             reward = reward - 100 # give a penalty for termination
         
-        observation = [x, y, vx, vy, thetax, thetay]
+        observation = [x, y, vx, vy, thetax, thetay, self.action_delta[0], self.action_delta[1]]
         
 
         if self.verbose:
-            print(f'Position: {current_position_scaled}, Radius: {np.linalg.norm(current_position_scaled)},  Velocity: {current_velocity_scaled}, Action: {clipped_action}, Reward: {reward}')
+            print(f'Position: {current_position_scaled}, Radius: {np.linalg.norm(current_position_scaled)},  Velocity: {current_velocity_scaled}, action: {action}, clipped action: {clipped_action}, Reward: {reward}')
         
 
         truncated = False # obsolete
@@ -216,7 +219,7 @@ class ManipulatorEnv(gym.Env):
                         print('Ball is centered, exiting reset().')
                         x, y = self.scaling_matrix @ current_position # scaled to meters
                         vx, vy = self.scaling_matrix @ current_velocity # scaled to m/s
-                        observation = [x, y, vx, vy, 0, 0]
+                        observation = [x, y, vx, vy, 0, 0, 0, 0]
                         self._step_counter = 0 # reset step counter
                         return observation, {}
                     

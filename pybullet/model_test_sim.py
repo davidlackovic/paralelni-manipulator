@@ -5,6 +5,8 @@ import time
 import os
 import simEnvironment
 from stable_baselines3 import PPO
+from stable_baselines3 import A2C
+from stable_baselines3 import TD3
 from stable_baselines3.common.vec_env import VecNormalize
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
@@ -57,11 +59,11 @@ ball_start_orientation = p.getQuaternionFromEuler([0, 0, 0])
 
 # Spawn the ball as a separate dynamic object
 ball_id = p.loadURDF('pybullet/ball.urdf', ball_start_pos, ball_start_orientation, useFixedBase=False)
-p.changeDynamics(ball_id, -1, lateralFriction=1e-5, rollingFriction=1e-8, restitution=0.002)
+p.changeDynamics(ball_id, -1, lateralFriction=0, rollingFriction=0, restitution=0.002)
 
 
 # set name of experiment
-name = 'v1.7'
+name = 'v2.0_TD3'
 
 training_data_path = 'pybullet/training_data'
 folder_path = os.path.join(training_data_path, name)
@@ -69,7 +71,7 @@ vec_file = os.path.join(folder_path, f'{name}_vec.pkl')
 model_file = os.path.join(folder_path, f'{name}_model.zip')
 
 
-simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, steps_per_frame=16, verbose=True)
+simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, steps_per_frame=16, verbose=True, wait_to_finish_moves=False)
 simEnv = DummyVecEnv([lambda: simEnv])
 
 # Load the VecNormalize object
@@ -81,7 +83,8 @@ simEnv.norm_reward = False
 
 
 #model = PPO("MlpPolicy", simEnv, verbose=1)
-model = PPO.load(model_file, simEnv)  # Load the trained model
+model = TD3.load(model_file, simEnv)  # Load the trained model
+#model = TD3("MlpPolicy", simEnv, verbose=1, train_freq=2048)
 
 #model.policy.set_training_mode(False)
 

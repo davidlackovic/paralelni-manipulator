@@ -11,6 +11,7 @@ import time
 import os
 
 from stable_baselines3 import PPO
+from stable_baselines3 import TD3
 from stable_baselines3.common.vec_env import VecNormalize
 from stable_baselines3.common.vec_env import DummyVecEnv
 
@@ -26,7 +27,7 @@ K_i = 0.000000
 K_d = 0.0003
 acceleration = 500
 feedrate = 10000
-delay = 0.03
+delay = 0.04
 
 camera_matrix = np.array([[649.84070017, 0.00000000e+00, 326.70849136],
                 [0.00000000e+00, 650.79575464, 306.13746377],
@@ -38,7 +39,7 @@ lower_color = np.array([0, 50, 120])
 upper_color = np.array([36, 255, 251])
 alpha = 0.7
 # set name of experiment
-name = 'v1.7'
+name = 'v2.0_TD3'
 
 training_data_path = 'pybullet/training_data'
 folder_path = os.path.join(training_data_path, name)
@@ -59,9 +60,12 @@ env = DummyVecEnv([lambda: env])
 # Load the VecNormalize object
 env = VecNormalize.load(vec_file, env)
 
+env.training = False # Ne normalnizira več na nove podatke
+env.norm_reward = False
+
 # Load the trained model
 #model = PPO("MlpPolicy", env, verbose=1)
-model = PPO.load(model_file, env=env)
+model = TD3.load(model_file, env=env)
 
 obs = env.reset()
 done = False
@@ -71,13 +75,13 @@ reward_sum = 0
 while not done:
     action, _ = model.predict(obs, deterministic=True)
     obs, reward, terminated, truncated = env.step(action)
-    ret, frame = kamera_object.cap.read()
-    processed_frame, current_position, current_velocity = kamera_object.process_frame(frame, lower_color, upper_color, alpha)
-    cv2.line(processed_frame, (334, 287), (334+int(action[0][0]*700), 287+int(action[0][1]*700)), (0, 255, 0), 1)  # Draw the action line
-    cv2.imshow(kamera_object.window_name, processed_frame)
+    #ret, frame = kamera_object.cap.read()
+    #processed_frame, current_position, current_velocity = kamera_object.process_frame(frame, lower_color, upper_color, alpha)
+    #cv2.line(processed_frame, (334, 287), (334+int(action[0][0]*700), 287+int(action[0][1]*700)), (0, 255, 0), 1)  # Draw the action line
+    #cv2.imshow(kamera_object.window_name, processed_frame)
     
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+    #if cv2.waitKey(1) & 0xFF == ord('q'):
+    #            break
     done = terminated
     reward_sum += reward
     i += 1
@@ -91,7 +95,7 @@ i = 0
 reward_sum = 0  
 
 while not done:
-    action, _ = model.predict(obs)
+    action, _ = model.predict(obs, deterministic=True)
     obs, reward, terminated, truncated = env.step(action)
     done = terminated
     reward_sum += reward

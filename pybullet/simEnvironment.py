@@ -16,7 +16,7 @@ class ManipulatorSimEnv(gym.Env):
         ball_id: Pybullet unique id for ball \n
         max_RTF: if True, maximum achievable real-time factor will be used (for speed-learning)
         '''
-    def __init__(self, robot_id, ball_id, max_RTF = False, steps_per_frame = 1, verbose = False):
+    def __init__(self, robot_id, ball_id, max_RTF = False, steps_per_frame = 1, wait_to_finish_moves = False, verbose = False):
         super(ManipulatorSimEnv, self).__init__()
         self.ball_id = ball_id
         self.robot_id = robot_id
@@ -30,13 +30,15 @@ class ManipulatorSimEnv(gym.Env):
         self.episode_count = 0   
 
         self.verbose = verbose
+        self.wait_to_finish_moves = wait_to_finish_moves
 
-        self.max_tilt_per_frame = np.array([0.02, 0.02]) # maximum tilt per frame in radians
+        self.max_tilt_per_frame = np.array([1, 1]) # maximum tilt per frame in radians - if set to 1 its not clamped
         self.previous_action = np.zeros(2) # old tilt values for X and Y axes
+        self.tilt_epsilon = 0.001 # minimum tilt delta to consider the action as changed
         
 
         #self.observation_space = gym.spaces.Box(low=-0.4, high=0.4, shape=(2,), dtype=np.float32) # TODO lahko dodam time_since_last_observation
-        self.observation_space = gym.spaces.Box(low=-0.4, high=0.4, shape=(6,), dtype=np.float32) # dodane vx, vy, nakloni plošče thetaX, thetaY
+        self.observation_space = gym.spaces.Box(low=-0.4, high=0.4, shape=(8,), dtype=np.float32) # dodane vx, vy, nakloni plošče thetaX, thetaY
         
         self.action_space = gym.spaces.Box(low=-0.1, high=0.1, shape=(2,), dtype=np.float32) # naklon v X in Y smeri
         
@@ -46,23 +48,39 @@ class ManipulatorSimEnv(gym.Env):
 
         now = datetime.now()
         formatted_time = now.strftime("%Y-%m-%d %H:%M:%S") + f".{int(now.microsecond / 1000):03d}"
-        print(formatted_time)
+        print(formatted_time, action)
         # clamp action to maximum tilt per frame
         clipped_action = np.clip(action, self.previous_action-self.max_tilt_per_frame, self.previous_action+self.max_tilt_per_frame)
+        print(f'clipped_action: {clipped_action}, previous_action: {self.previous_action}, action: {action}')
+        self.action_delta = clipped_action - self.previous_action
+        print(f'action_delta: {self.action_delta}')
         self.previous_action = clipped_action # update previous action
+        
 
         # apply action
-        p.setJointMotorControl2(self.robot_id, self.joint_X, p.POSITION_CONTROL, targetPosition=clipped_action[0], force=1e30, positionGain=0.8, velocityGain=1.0)
-        p.setJointMotorControl2(self.robot_id, self.joint_Y, p.POSITION_CONTROL, targetPosition=clipped_action[1], force=1e30, positionGain=0.8, velocityGain=1.0)
+        p.setJointMotorControl2(self.robot_id, self.joint_X, p.POSITION_CONTROL, targetPosition=clipped_action[0], force=1e30, positionGain=0.08, velocityGain=1.0)
+        p.setJointMotorControl2(self.robot_id, self.joint_Y, p.POSITION_CONTROL, targetPosition=clipped_action[1], force=1e30, positionGain=0.08, velocityGain=1.0)
 
 
         termination_circle_radius = 0.17 # m
         self._step_counter = getattr(self, "_step_counter", 0) + 1
 
-        for _ in range(self.steps_per_frame):
-            p.stepSimulation()
-            if self.max_RTF == False:
-                time.sleep(1/240.0)
+        thetaX = p.getJointState(self.robot_id, self.joint_X)[0]
+        thetaY = p.getJointState(self.robot_id, self.joint_Y)[0]
+
+        if self.wait_to_finish_moves:
+            while abs(thetaX-clipped_action[0]) > self.tilt_epsilon or abs(thetaY-clipped_action[1]) > self.tilt_epsilon:
+                p.stepSimulation()
+                if self.max_RTF == False:
+                    time.sleep(1/240.0)
+                thetaX = p.getJointState(self.robot_id, self.joint_X)[0]
+                thetaY = p.getJointState(self.robot_id, self.joint_Y)[0]
+
+        else:
+            for _ in range(self.steps_per_frame):
+                p.stepSimulation()
+                if self.max_RTF == False:
+                    time.sleep(1/240.0)
 
         ball_position, _ = p.getBasePositionAndOrientation(self.ball_id)
         linear_velocity, angular_velocity = p.getBaseVelocity(self.ball_id)
@@ -79,7 +97,15 @@ class ManipulatorSimEnv(gym.Env):
         #reward = self.gauss_reward_function(ball_position[0:2], 10, 0.09)*self.gauss_reward_function(linear_velocity, 10, 0.09) 
         #reward = self.gauss_reward_function(ball_position[0:2], 1000, 0.007)*self.gauss_reward_function(linear_velocity, 10, 0.01) 
         
-        reward = self._step_counter + self.gauss_reward_function(ball_position[0:2], 100, 0.03)*self.gauss_reward_function(linear_velocity, 50, 0.01) 
+        reward = self.gauss_reward_function(ball_position[0:2], 100, 0.03)*self.gauss_reward_function(linear_velocity, 50, 0.01)
+
+        # za PPO 
+        #action_reward = (1.0 - np.sum(np.abs(action)) / 0.2)*100
+        #action_reward = np.clip(action_reward, 0.1, 100)  
+
+        #reward *= action_reward
+
+
 
         #re-worked reward system
         #reward = self._step_counter - 2000*np.linalg.norm(ball_position[0:2])**2 * np.linalg.norm(linear_velocity)**2
@@ -99,7 +125,7 @@ class ManipulatorSimEnv(gym.Env):
             reward = reward - 100 # give a penalty for termination
             
 
-        observation = [ball_position[0], ball_position[1], linear_velocity[0], linear_velocity[1], clipped_action[0], clipped_action[1]]
+        observation = [ball_position[0], ball_position[1], linear_velocity[0], linear_velocity[1], clipped_action[0], clipped_action[1], self.action_delta[0], self.action_delta[1]]
 
         truncated = False # TODO: implement truncation if needed
 
@@ -135,14 +161,14 @@ class ManipulatorSimEnv(gym.Env):
         thetaX = p.getJointState(self.robot_id, self.joint_X)[0]
         thetaY = p.getJointState(self.robot_id, self.joint_Y)[0]
 
-        observation = [x, y, start_linear_velocity_x, start_linear_velocity_y, thetaX, thetaY]
+        observation = [x, y, start_linear_velocity_x, start_linear_velocity_y, thetaX, thetaY, 0, 0]
         self._step_counter = 0 # reset step counter
 
         return observation, {}
     
     def gauss_reward_function(self, ball_position, a, sigma):
         '''Gauss reward function type a * exp(-error^2/(2*sigma^2)) \n'''
-        reward = a * np.exp(-np.linalg.norm(ball_position[0:2])**2 / (2 * sigma**2))
+        reward = a * np.exp(-np.linalg.norm(ball_position)**2 / (2 * sigma**2))
         return reward
     
     def set_RTF(self, RTF_flag):
