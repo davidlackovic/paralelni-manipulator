@@ -17,8 +17,17 @@ mtx = np.array([[649.84070017, 0.00000000e+00, 326.70849136],
                  [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
 dist = np.array([-0.4586199,  0.20583847,   0.00120806,  0.00507029,  -0.0083358])
 
+# za oranzno ping pong
 lower_color = np.array([0, 50, 120])    
 upper_color = np.array([36, 255, 251])
+
+# za zeleno gumijasto
+#lower_color = np.array([36, 50, 50])    # Lower bound for green in HSV
+#upper_color = np.array([86, 255, 255])  # Upper bound for green in HSV
+
+#lower_color = np.array([36, 50, 70])  
+#upper_color = np.array([89, 255, 255])
+
 
 CV = kamera.CV2Wrapper(camera_index=1, window_name='Webcam feed', camera_matrix=mtx, distortion_coefficients=dist)
 

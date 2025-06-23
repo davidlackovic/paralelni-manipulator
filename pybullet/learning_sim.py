@@ -68,7 +68,7 @@ ball_id = p.loadURDF('pybullet/ball.urdf', ball_start_pos, ball_start_orientatio
 p.changeDynamics(ball_id, -1, lateralFriction=1e-5, rollingFriction=1e-8, restitution=0.002)
 
 # set name of experiment
-name = 'v2.0_TD3'
+name = 'v2.4_TD3'
 
 training_data_path = 'pybullet/training_data'
 folder_path = os.path.join(training_data_path, name)

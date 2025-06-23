@@ -8,6 +8,8 @@ from finished import communicator_v2
 import serial
 import time
 from datetime import datetime
+from stable_baselines3.common.callbacks import EventCallback
+import keyboard
 
 
 class ManipulatorEnv(gym.Env):
@@ -18,10 +20,15 @@ class ManipulatorEnv(gym.Env):
         self.com = comm_obj
         self.PID = PID_obj
 
-        # za kamero
+        # za oranžno ping pong
         self.lower_color = np.array([0, 50, 120])    
         self.upper_color = np.array([36, 255, 251])
         self.alpha = 0.7
+ 
+        # za zeleno gumijasto
+        #self.lower_color = np.array([36, 50, 70])  
+        #self.upper_color = np.array([89, 255, 255])
+
 
         # speed parameters
         self.feedrate = feedrate
@@ -47,14 +54,14 @@ class ManipulatorEnv(gym.Env):
         self.verbose = verbose
 
         # for clipping max tilt per frame
-        self.max_tilt_per_frame = np.array([1, 1]) # maximum tilt per frame in radians
+        self.max_tilt_per_frame = np.array([0.05, 0.05]) # maximum tilt per frame in radians
         self.previous_action = np.zeros(2) # old tilt values for X and Y axes
 
 
 
         self.observation_space = gym.spaces.Box(low=-0.4, high=0.4, shape=(8,), dtype=np.float32) # dodane še vx, vy, nakloni plošče thetaX, thetaY
         
-        self.action_space = gym.spaces.Box(low=-0.1, high=0.1, shape=(2,), dtype=np.float32) # naklon v X in Y smeri
+        self.action_space = gym.spaces.Box(low=-0.05, high=0.05, shape=(2,), dtype=np.float32) # naklon v X in Y smeri
         
         self.ball_pos = np.array([0.0, 0.0])
 
@@ -64,7 +71,7 @@ class ManipulatorEnv(gym.Env):
         formatted_time = now.strftime("%Y-%m-%d %H:%M:%S") + f".{int(now.microsecond / 1000):03d}"
         print(formatted_time)
 
-        termination_circle_radius = 0.25
+        termination_circle_radius = 0.15
         self._step_counter = getattr(self, "_step_counter", 0) + 1
 
         action = np.array([action[1], -action[0]]) # pretvori iz naklon_okoli_osi v naklon_v_smeri_osi, ampak še vedno v K.S. kamere
@@ -101,13 +108,14 @@ class ManipulatorEnv(gym.Env):
         
         processed_frame, current_position, current_velocity = self.CV.process_frame(frame, self.lower_color, self.upper_color, self.alpha)
 
-        if np.all(current_position == None):
-            print("No ball detected, trying again...")
+        ball_tracking_attempts = 1
+        while np.all(current_position == None):
+            print(f"No ball detected, trying again in a while loop, try: {ball_tracking_attempts}")
+            ret, frame = self.CV.cap.read()
             processed_frame, current_position, current_velocity = self.CV.process_frame(frame, self.lower_color, self.upper_color, self.alpha)
-            
-            if np.all(current_position == None):
-                print('Ball not detected after processing frame, exiting...')
-                return [0, 0, 0, 0, 0, 0, 0, 0], 0, True, False, {}
+            ball_tracking_attempts += 1
+
+        
         self.frame = processed_frame
 
         #if np.all(current_position != None):
@@ -121,7 +129,12 @@ class ManipulatorEnv(gym.Env):
             thetax, thetay = action # nakloni plošče v radianih
 
         # reward
-        reward = self.gauss_reward_function(current_position_scaled, 100, 0.03)*self.gauss_reward_function(current_velocity_scaled, 50, 0.01)
+        #reward = 10*self._step_counter + self.gauss_reward_function(current_position_scaled, 10, 0.04)*self.gauss_reward_function(current_velocity_scaled, 50, 0.01)
+        reward = 10*self._step_counter + self.gauss_reward_function(current_position_scaled, 10, 0.03)*self.gauss_reward_function(current_velocity_scaled, 50, 0.006)
+
+
+        #if np.any(abs(self.action_delta) > 0.04):
+        #    reward *= 0.5
 
         if np.linalg.norm(current_position_scaled) < 0.04 and np.linalg.norm(current_velocity_scaled) < 0.01:
            reward += 50  # Small bonus for staying centered
@@ -130,7 +143,7 @@ class ManipulatorEnv(gym.Env):
         terminated = np.linalg.norm(current_position_scaled) > termination_circle_radius 
         if terminated:
             print('Termination condition met in step().')
-            reward = reward - 100 # give a penalty for termination
+            reward = reward - 1000 # give a penalty for termination
         
         observation = [x, y, vx, vy, thetax, thetay, self.action_delta[0], self.action_delta[1]]
         
@@ -173,9 +186,7 @@ class ManipulatorEnv(gym.Env):
             
 
             if np.all(current_position != None):
-                #cv2.imshow("Webcam feed", processed_frame)
-
-                # notebook alternativa da ne šteka
+                cv2.imshow("Webcam feed", processed_frame)
                 
                 ret, frame = self.CV.cap.read()
                 processed_frame, current_position, current_velocity = self.CV.process_frame(frame, self.lower_color, self.upper_color, self.alpha)
@@ -188,11 +199,13 @@ class ManipulatorEnv(gym.Env):
                 ret, frame = self.CV.cap.read()
                 processed_frame, current_position, current_velocity = self.CV.process_frame(frame, self.lower_color, self.upper_color, self.alpha)
                 processed_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB)
+                
 
         #ko jo najde izravna ploščo in začne balansirat        
         print('3 consective frames with ball detected. Balancing started.')
         timer = time.time()
         old_time = time.time()
+        limited_steps = np.array([None, None, None])
         while True:
             ret, frame = self.CV.cap.read()    
             if not ret:
@@ -208,17 +221,29 @@ class ManipulatorEnv(gym.Env):
                 first_frame = False
             else:
                 if np.all(self.CV.pos_cam_old != None) and np.all(current_position != None):
+                    # steady state check
+                    #if np.linalg.norm(current_velocity) < 0.5 and np.all(limited_steps != None):
+                        #limited_steps[0] += 1
+                        #limited_steps[1] += -1
+                        #limited_steps[2] += 1
+                        #self.com.move_to_position(limited_steps, feedrate=self.feedrate)
+                        #time.sleep(self.delay)
 
+                    x, y = self.scaling_matrix @ current_position # scaled to meters
+                    vx, vy = self.scaling_matrix @ current_velocity # scaled to m/s
+                    scaled_position = np.array([x, y])
+                    scaled_velocity = np.array([vx, vy])
+                    
                     # termination check
-                    if np.linalg.norm(current_velocity) > 4 or np.linalg.norm(current_position) > 90:
+                    if np.linalg.norm(scaled_velocity) > 0.2 or np.linalg.norm(scaled_position) > 0.08:
                         timer = time.time()
 
+                
 
 
-                    if time.time() - timer > 0.8:
+
+                    if time.time() - timer > 0.4:
                         print('Ball is centered, exiting reset().')
-                        x, y = self.scaling_matrix @ current_position # scaled to meters
-                        vx, vy = self.scaling_matrix @ current_velocity # scaled to m/s
                         observation = [x, y, vx, vy, 0, 0, 0, 0]
                         self._step_counter = 0 # reset step counter
                         return observation, {}
@@ -252,7 +277,7 @@ class ManipulatorEnv(gym.Env):
                         #print(f'moved {time.strftime('%Y-%m-%d %H:%M:%S')}.{int(time.time() * 1000) % 1000:03d}')
                         time.sleep(self.delay)
                 else:
-                    flat_position=kinematika.izracun_kotov(b, p, l_1, l_2, 0.19, 1.5, 1.5) # hardcoded 0.19
+                    flat_position=kinematika.izracun_kotov(b, p, l_1, l_2, 0.19, 1.5, 1.5) # ce je v vogalu in je ne vidi, nagne plosco nasproti
                     flat_steps=kinematika.deg2steps(flat_position)
                     self.com.move_to_position(flat_steps, feedrate=1000)
                     time.sleep(0.5)
@@ -262,8 +287,8 @@ class ManipulatorEnv(gym.Env):
                 cv2.imshow("Webcam feed", processed_frame) # prikaze sliko
 
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+            #if cv2.waitKey(1) & 0xFF == ord('q'):
+            #   break
 
 
 
@@ -290,6 +315,48 @@ class ManipulatorEnv(gym.Env):
         NOTE: position is passed to np.linalg.norm() within this function'''
         reward = a * np.exp(-np.linalg.norm(ball_position[0:2])**2 / (2 * sigma**2))
         return reward
+    
+class RolloutEndCallback(EventCallback):
+    '''Class for creating a callback.
+    '''
+    def __init__(self, simEnv, end_after_n_episodes = None):
+        super(RolloutEndCallback, self).__init__()
+        self.rollout_rewards = []
+        self.learning_rewards = []
+        self.simEnv = simEnv
+        self.save = False
+    
+
+
+    
+    def _on_step(self) -> bool:
+        reward = self.locals["rewards"][0]
+        self.rollout_rewards.append(reward)
+
+        print('listening for keyboard input...')
+        
+        if keyboard.is_pressed('q'):
+            print("Stopping training without saving.")
+            self.save = False
+            return False
+    
+        if keyboard.is_pressed('s'):
+            print("Stopping training and saving the model.")
+            self.save = True
+            return False
+    
+
+    
+        return True
+
+    def _on_rollout_end(self) -> None:
+        if len(self.rollout_rewards) > 0:
+            rew_sum = np.sum(self.rollout_rewards)
+            print(f"Rollout ended, reward sum: {rew_sum}")
+            self.learning_rewards.append(rew_sum)
+            self.rollout_rewards = []
+            
+            self.simEnv.reset()
 
        
      

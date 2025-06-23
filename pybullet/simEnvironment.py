@@ -40,8 +40,7 @@ class ManipulatorSimEnv(gym.Env):
         #self.observation_space = gym.spaces.Box(low=-0.4, high=0.4, shape=(2,), dtype=np.float32) # TODO lahko dodam time_since_last_observation
         self.observation_space = gym.spaces.Box(low=-0.4, high=0.4, shape=(8,), dtype=np.float32) # dodane vx, vy, nakloni plošče thetaX, thetaY
         
-        self.action_space = gym.spaces.Box(low=-0.1, high=0.1, shape=(2,), dtype=np.float32) # naklon v X in Y smeri
-        
+        self.action_space = gym.spaces.Box(low=-0.08, high=0.08, shape=(2,), dtype=np.float32) # naklon v X in Y smeri
 
     def step(self, action):
         # print time
@@ -97,7 +96,11 @@ class ManipulatorSimEnv(gym.Env):
         #reward = self.gauss_reward_function(ball_position[0:2], 10, 0.09)*self.gauss_reward_function(linear_velocity, 10, 0.09) 
         #reward = self.gauss_reward_function(ball_position[0:2], 1000, 0.007)*self.gauss_reward_function(linear_velocity, 10, 0.01) 
         
-        reward = self.gauss_reward_function(ball_position[0:2], 100, 0.03)*self.gauss_reward_function(linear_velocity, 50, 0.01)
+        #reward = self.gauss_reward_function(ball_position[0:2], 100, 0.03)*self.gauss_reward_function(linear_velocity, 50, 0.01)
+        reward = self.gauss_reward_function(ball_position[0:2], 100, 0.03)*self.gauss_reward_function(linear_velocity, 50, 0.01)*self.gauss_reward_function(self.action_delta, 10, 0.01)
+        
+        if np.any(abs(self.action_delta) > 0.04):
+            reward *= 0.5
 
         # za PPO 
         #action_reward = (1.0 - np.sum(np.abs(action)) / 0.2)*100
@@ -126,7 +129,7 @@ class ManipulatorSimEnv(gym.Env):
             
 
         observation = [ball_position[0], ball_position[1], linear_velocity[0], linear_velocity[1], clipped_action[0], clipped_action[1], self.action_delta[0], self.action_delta[1]]
-
+        print(f'Observation: {observation}')
         truncated = False # TODO: implement truncation if needed
 
     

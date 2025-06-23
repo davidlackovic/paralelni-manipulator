@@ -10,6 +10,9 @@ from stable_baselines3 import TD3
 from stable_baselines3.common.vec_env import VecNormalize
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
+import csv
+import pandas as pd
+from datetime import datetime
 
 # Initialize PyBullet
 p.connect(p.GUI)
@@ -59,16 +62,21 @@ ball_start_orientation = p.getQuaternionFromEuler([0, 0, 0])
 
 # Spawn the ball as a separate dynamic object
 ball_id = p.loadURDF('pybullet/ball.urdf', ball_start_pos, ball_start_orientation, useFixedBase=False)
-p.changeDynamics(ball_id, -1, lateralFriction=0, rollingFriction=0, restitution=0.002)
+p.changeDynamics(ball_id, -1, lateralFriction=0.2, rollingFriction=0.0002, restitution=0.2)
 
 
 # set name of experiment
-name = 'v2.0_TD3'
+name = 'v2.3_TD3'
+measurement_number = '0'
 
 training_data_path = 'pybullet/training_data'
 folder_path = os.path.join(training_data_path, name)
+experiments_path = os.path.join(folder_path, 'experiments')
+
 vec_file = os.path.join(folder_path, f'{name}_vec.pkl')
 model_file = os.path.join(folder_path, f'{name}_model.zip')
+csv_file = os.path.join(experiments_path, f'{name}_sim_experiment_{measurement_number}.csv')
+
 
 
 simEnv = simEnvironment.ManipulatorSimEnv(robot_id, ball_id, steps_per_frame=16, verbose=True, wait_to_finish_moves=False)
@@ -79,7 +87,8 @@ simEnv = VecNormalize.load(vec_file, simEnv)
 #simEnv = VecNormalize(simEnv, norm_obs=True, norm_reward=False)
 
 simEnv.training = False # Ne normalnizira več na nove podatke
-simEnv.norm_reward = False
+simEnv.norm_reward = True
+simEnv.norm_obs = True
 
 
 #model = PPO("MlpPolicy", simEnv, verbose=1)
@@ -100,15 +109,33 @@ done = False
 i = 0
 reward_sum = 0  
 
-
+info = []
+start_time = datetime.now()
 
 while not done:
     action, _ = model.predict(obs, deterministic=True) # True ne dodaja šuma
     obs, reward, terminated, truncated = simEnv.step(action)
+    print(f'ibservation in scritpt: {obs}')
+    time = (datetime.now() - start_time).total_seconds()
+    print(time, obs)
+
+    # unnormalize the observation
+    mean = simEnv.obs_rms.mean
+    var = simEnv.obs_rms.var
+    unnormalized_obs = obs * np.sqrt(var) + mean
+    radius = np.sqrt(unnormalized_obs[0][0]**2 + unnormalized_obs[0][1]**2)
+
+    data = np.hstack([np.array(time), np.array(unnormalized_obs[0]), np.array(radius)])
+    print(f'data: {data}')
+    if np.all(obs != None):
+        info.append(data)
     keys = p.getKeyboardEvents()
     if ord('r') in keys and keys[ord('r')] & p.KEY_WAS_TRIGGERED:
         print("Resetting...")
         obs = simEnv.reset()
+    
+    if ord('q') in keys and keys[ord('q')] & p.KEY_WAS_TRIGGERED:
+        break
 
     #print(f"Step: {i}, Action: {action}, Reward: {reward}")
         
@@ -127,5 +154,7 @@ while not done:
     i += 1
 
 
-
+columns = ['time', 'x', 'y', 'vx', 'vy', 'theta_x', 'theta_y', 'action_x', 'action_y', 'radius']
+df = pd.DataFrame(info, columns=columns)
+df.to_csv(csv_file, index=False, float_format="%.6f")
 p.disconnect()
