@@ -54,16 +54,16 @@ class ManipulatorEnv(gym.Env):
         self.verbose = verbose
 
         # for clipping max tilt per frame
-        self.max_tilt_per_frame = np.array([0.05, 0.05]) # maximum tilt per frame in radians
-        self.previous_action = np.zeros(2) # old tilt values for X and Y axes
+        self.max_tilt_per_frame = np.array([2, 2, 2]) # maximum step change per frame (in mm)
+        self.previous_action = np.zeros(3) # old step values for X and Y axes
 
       
 
 
 
-        self.observation_space = gym.spaces.Box(low=-0.4, high=0.4, shape=(8,), dtype=np.float32) # dodane še vx, vy, nakloni plošče thetaX, thetaY
+        self.observation_space = gym.spaces.Box(low=0, high=10, shape=(10,), dtype=np.float32) # dodane še vx, vy, nakloni plošče thetaX, thetaY
         
-        self.action_space = gym.spaces.Box(low=-0.05, high=0.05, shape=(2,), dtype=np.float32) # naklon v X in Y smeri
+        self.action_space = gym.spaces.Box(low=2.15, high=6.00, shape=(3,), dtype=np.float32) # nakloni treh rok
         
         self.ball_pos = np.array([0.0, 0.0])
 
@@ -76,28 +76,13 @@ class ManipulatorEnv(gym.Env):
         termination_circle_radius = 0.15
         self._step_counter = getattr(self, "_step_counter", 0) + 1
 
-        action = np.array([action[1], -action[0]]) # pretvori iz naklon_okoli_osi v naklon_v_smeri_osi, ampak še vedno v K.S. kamere
-        #action = np.array([-action[0], action[1]]) # obrnjeno ker se nagiba v napačno smer - zakaj? nevem 
-        # zdej dela ok v X smeri, v Y smeri sploh ne spreminja actiona
-        action = action @ self.R # rotiraj akcijo z rotacijsko matriko - v K.S. robota
-
-
         #clip action
         clipped_action = np.clip(action, self.previous_action-self.max_tilt_per_frame, self.previous_action+self.max_tilt_per_frame)
         self.action_delta = clipped_action - self.previous_action
         self.previous_action = clipped_action # update previous action
 
-        # convert action to steps
-        # Dejanski parametri skrajšano
-        b = 0.071589 # m
-        p = 0.116 # m
-        l_1 = 0.08254 # m
-        l_2 = 0.1775 # m
-        angles = kinematika.izracun_kotov(b, p, l_1, l_2, 0.19, np.rad2deg(clipped_action[0]), np.rad2deg(clipped_action[1]))
-        steps = kinematika.deg2steps(angles)
-
         # apply action
-        self.com.move_to_position(steps, feedrate=self.feedrate) # TODO: speed in acceleration?
+        self.com.move_to_position(clipped_action, feedrate=self.feedrate) # TODO: speed in acceleration?
 
         # wait
         time.sleep(self.delay) 
@@ -128,7 +113,7 @@ class ManipulatorEnv(gym.Env):
             current_velocity_scaled = self.scaling_matrix @ current_velocity # scaled to m/s
             x, y = current_position_scaled # x, y position of the ball in meters
             vx, vy = current_velocity_scaled # x, y velocity of the ball in m/s
-            thetax, thetay = action # nakloni plošče v radianih
+            phi1, phi2, phi3 = clipped_action # nakloni plošče v stepih
 
         # reward
         reward = 10*self._step_counter + self.gauss_reward_function(current_position_scaled, 10, 0.04)*self.gauss_reward_function(current_velocity_scaled, 50, 0.02)
@@ -147,7 +132,7 @@ class ManipulatorEnv(gym.Env):
             print('Termination condition met in step().')
             reward = reward - 1000 # give a penalty for termination
         
-        observation = [x, y, vx, vy, thetax, thetay, self.action_delta[0], self.action_delta[1]]
+        observation = [x, y, vx, vy, phi1, phi2, phi3, self.action_delta[0], self.action_delta[1], self.action_delta[2]] 
         
 
         if self.verbose:
@@ -167,7 +152,7 @@ class ManipulatorEnv(gym.Env):
         l_1 = 0.08254 # m
         l_2 = 0.1775 # m
 
-        self.previous_action = np.zeros(2) # reset old tilt values for X and Y axes
+        self.previous_action = np.zeros(3) # reset old step values for X and Y axes
 
         print('Resetting environment...')
         # izravna ploščo
@@ -246,7 +231,7 @@ class ManipulatorEnv(gym.Env):
 
                     if time.time() - timer > 0.4:
                         print('Ball is centered, exiting reset().')
-                        observation = [x, y, vx, vy, 0, 0, 0, 0]
+                        observation = [x, y, vx, vy, 4.04822136, 4.04822136, 4.04822136, 0, 0, 0]
                         self._step_counter = 0 # reset step counter
                         return observation, {}
                     
@@ -323,19 +308,34 @@ class RolloutEndCallback(EventCallback):
     '''
     def __init__(self, simEnv, end_after_n_episodes = None):
         super(RolloutEndCallback, self).__init__()
-        self.rollout_rewards = []
-        self.learning_rewards = []
+        self.rollout_episode_rewards = []
+        self.rollout_episode_lengths = []
+        self.episode_rewards = []
+        self.episode_lengths = []
         self.simEnv = simEnv
         self.save = False
+
+        self.current_episode_reward = 0.0
+        self.current_episode_length = 0
     
 
 
     
     def _on_step(self) -> bool:
         reward = self.locals["rewards"][0]
-        self.rollout_rewards.append(reward)
+        done = self.locals["dones"][0]
 
-        print('listening for keyboard input...')
+        self.current_episode_reward += reward
+        self.current_episode_length += 1
+
+
+        if done:
+            self.episode_rewards.append(self.current_episode_reward)
+            self.episode_lengths.append(self.current_episode_length)
+
+            print(f"Episode ended, score: {self.current_episode_reward}, length: {self.current_episode_length}")
+            self.current_episode_reward = 0.0
+            self.current_episode_length = 0
         
         if keyboard.is_pressed('q'):
             print("Stopping training without saving.")
@@ -351,14 +351,7 @@ class RolloutEndCallback(EventCallback):
     
         return True
 
-    def _on_rollout_end(self) -> None:
-        if len(self.rollout_rewards) > 0:
-            rew_sum = np.sum(self.rollout_rewards)
-            print(f"Rollout ended, reward sum: {rew_sum}")
-            self.learning_rewards.append(rew_sum)
-            self.rollout_rewards = []
-            
-            self.simEnv.reset()
+    
 
        
      

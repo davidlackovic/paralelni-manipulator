@@ -6,7 +6,7 @@ import csv
 from finished import kinematika
 from finished import communicator_v2
 from finished import kamera
-from finished import environment
+from finished import environment_v2
 import serial
 import time
 import os
@@ -77,7 +77,7 @@ kamera_object = kamera.CV2Wrapper(camera_index=1, window_name='Webcam feed', cam
 communication_object = communicator_v2.SerialCommunication(ser=ser, normal_acceleration=acceleration)
 kamera_object.adjust_raw_exposure(-8.55) # value according to exposure_calibration_SCRIPT.py
 
-env = environment.ManipulatorEnv(kamera_obj=kamera_object, comm_obj=communication_object, PID_obj=PID, feedrate=feedrate, delay=delay, show_feed=True, verbose=True)
+env = environment_v2.ManipulatorEnv(kamera_obj=kamera_object, comm_obj=communication_object, PID_obj=PID, feedrate=feedrate, delay=delay, show_feed=True, verbose=True)
 env = DummyVecEnv([lambda: env])
 
 # Load the VecNormalize object
@@ -130,7 +130,13 @@ while not done:
 print(f'Finished first episode after {i} steps with total reward: {reward_sum}')
 
 # shrani observation v CSV
-columns = ['time', 'x', 'y', 'vx', 'vy', 'theta_x', 'theta_y', 'action_x', 'action_y', 'radius']
+# za 2D action space
+#columns = ['time', 'x', 'y', 'vx', 'vy', 'theta_x', 'theta_y', 'action_x', 'action_y', 'radius']
+#df = pd.DataFrame(info, columns=columns)
+#df.to_csv(csv_file, index=False, float_format="%.6f")
+
+# za 3D action space
+columns = ['time', 'x', 'y', 'vx', 'vy', 'psi1', 'psi2', 'psi3', 'delta_psi1', 'delta_psi2', 'delta_psi3']
 df = pd.DataFrame(info, columns=columns)
 df.to_csv(csv_file, index=False, float_format="%.6f")
 

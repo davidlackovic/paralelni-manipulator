@@ -5,7 +5,7 @@ import cv2
 from finished import kinematika
 from finished import communicator_v2
 from finished import kamera
-from finished import environment
+from finished import environment_v2
 import serial
 import time
 import os
@@ -16,6 +16,8 @@ from stable_baselines3 import PPO
 from stable_baselines3 import TD3
 from stable_baselines3.common.vec_env import VecNormalize
 from stable_baselines3.common.vec_env import DummyVecEnv
+
+import pandas as pd
 
 #Dejanski parametri skrajšano
 b = 0.071589 # m
@@ -29,7 +31,7 @@ K_i = 0.000000
 K_d = 0.0003
 acceleration = 500
 feedrate = 10000
-delay = 0.06
+delay = 0.08
 
 camera_matrix = np.array([[649.84070017, 0.00000000e+00, 326.70849136],
                 [0.00000000e+00, 650.79575464, 306.13746377],
@@ -64,9 +66,9 @@ ser = serial.Serial(serial_port, 115200, timeout=1)
 PID = kinematika.PID_controller(np.array([0,0]), np.array([0,0]), np.deg2rad(16), np.deg2rad(45), K_p, K_i, K_d)
 kamera_object = kamera.CV2Wrapper(camera_index=1, window_name='Webcam feed', camera_matrix=camera_matrix, distortion_coefficients=distortion_coefficients)
 communication_object = communicator_v2.SerialCommunication(ser=ser, normal_acceleration=acceleration)
-kamera_object.adjust_raw_exposure(-9.45) # value according to exposure_calibration_SCRIPT.py
+kamera_object.adjust_raw_exposure(-8.55) # value according to exposure_calibration_SCRIPT.py
 
-env = environment.ManipulatorEnv(kamera_obj=kamera_object, comm_obj=communication_object, PID_obj=PID, feedrate=feedrate, delay=delay, show_feed=True, verbose=True)
+env = environment_v2.ManipulatorEnv(kamera_obj=kamera_object, comm_obj=communication_object, PID_obj=PID, feedrate=feedrate, delay=delay, show_feed=True, verbose=True)
 env = DummyVecEnv([lambda: env])
 
 # Load/create the VecNormalize object
@@ -84,7 +86,7 @@ env.norm_obs = True
 model = TD3("MlpPolicy", env, 
             buffer_size=50_000,          # Smaller buffer for faster updates (if short episodes)
             learning_starts=500,         # Start training earlier
-            train_freq=(256, "step"),    # More frequent updates
+            train_freq=(100, "step"),    # More frequent updates
             gradient_steps=64,           # More updates per train call
             batch_size=256,              # Larger batches
             policy_kwargs=dict(net_arch=[256, 256]))
@@ -94,7 +96,7 @@ done = False
 i = 0
 reward_sum = 0  
 
-reward_logger_callback = environment.RolloutEndCallback(env)
+reward_logger_callback = environment_v2.RolloutEndCallback(env)
 
 
 model.learn(total_timesteps=40_000_000, progress_bar=True, callback=reward_logger_callback,)
@@ -104,18 +106,19 @@ if reward_logger_callback.save == True:
     model.save(model_file_post)  # save the trained model
     env.save(vec_file_post) # save vectorize data
 
-    with open(data_file_post, 'wb') as f:
-        pickle.dump(reward_logger_callback.learning_rewards, f)
-
+    columns = ['episode_rewards', 'episode_lengths']
+    data = np.stack((reward_logger_callback.episode_rewards, reward_logger_callback.episode_lengths), axis=1)
+    df = pd.DataFrame(data, columns=columns)
+    df.to_csv(data_file_post, index=False, float_format="%.6f")
 env.close()
 
 
 
 
-
+s
 
 plt.figure(figsize=(10, 5))
-plt.plot(reward_logger_callback.learning_rewards, label='Mean Reward', color='blue')
+plt.plot(reward_logger_callback.episode_rewards, label='Episode rewards', color='blue')
 plt.title('Training Progress')
 plt.xlabel('Rollout Number')
 plt.ylabel('Mean Episode Reward')
