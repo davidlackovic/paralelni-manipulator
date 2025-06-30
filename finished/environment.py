@@ -131,7 +131,9 @@ class ManipulatorEnv(gym.Env):
             thetax, thetay = action # nakloni plošče v radianih
 
         # reward
-        reward = 10*self._step_counter + self.gauss_reward_function(current_position_scaled, 10, 0.04)*self.gauss_reward_function(current_velocity_scaled, 50, 0.02)
+        #reward = 10*self._step_counter + self.gauss_reward_function(current_position_scaled, 10, 0.04)*self.gauss_reward_function(current_velocity_scaled, 50, 0.02) za 4.0
+        reward = 10*self._step_counter + self.gauss_reward_function(current_position_scaled, 40, 0.02)*self.gauss_reward_function(current_velocity_scaled, 20, 0.006) # za 4.1
+
         #reward = 10*self._step_counter + self.gauss_reward_function(current_position_scaled, 10, 0.03)*self.gauss_reward_function(current_velocity_scaled, 50, 0.006)
 
 

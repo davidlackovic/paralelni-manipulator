@@ -44,9 +44,9 @@ upper_color = np.array([36, 255, 251])
 alpha = 0.5
 
 # name of pre-trained model
-name_pre = 'v3.0_TD3'
+name_pre = 'v4.0_TD3'
 # set name of post-trained model
-name_post = 'v4.0_TD3'
+name_post = 'v4.1_TD3' 
 
 training_data_path = 'pybullet/training_data'
 folder_path_pre = os.path.join(training_data_path, name_pre)

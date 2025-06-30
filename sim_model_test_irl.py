@@ -25,12 +25,12 @@ l_1 = 0.08254 # m
 l_2 = 0.1775 # m
 
 # PID konstante za počasnejše premikanje
-K_p = 0.0001
+K_p = 0.00014
 K_i = 0.000000
 K_d = 0.0003
 acceleration = 500
 feedrate = 10000
-delay = 0.06
+delay = 0.08
 
 camera_matrix = np.array([[649.84070017, 0.00000000e+00, 326.70849136],
                 [0.00000000e+00, 650.79575464, 306.13746377],
@@ -46,14 +46,14 @@ upper_color = np.array([36, 255, 251])
 #lower_color = np.array([36, 50, 70])  
 #upper_color = np.array([89, 255, 255])
 
-alpha = 0.7
+alpha = 0.5
 
 
 
 
 # set name of experiment
-name = 'v3.0_TD3'
-measurement_number = '1'
+name = 'v4.0_TD3'
+measurement_number = '3'
 
 
 
@@ -136,7 +136,7 @@ print(f'Finished first episode after {i} steps with total reward: {reward_sum}')
 #df.to_csv(csv_file, index=False, float_format="%.6f")
 
 # za 3D action space
-columns = ['time', 'x', 'y', 'vx', 'vy', 'psi1', 'psi2', 'psi3', 'delta_psi1', 'delta_psi2', 'delta_psi3']
+columns = ['time', 'x', 'y', 'vx', 'vy', 'psi1', 'psi2', 'psi3', 'delta_psi1', 'delta_psi2', 'delta_psi3', 'radius']
 df = pd.DataFrame(info, columns=columns)
 df.to_csv(csv_file, index=False, float_format="%.6f")
 
