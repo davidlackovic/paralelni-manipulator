@@ -52,8 +52,8 @@ alpha = 0.5
 
 
 # set name of experiment
-name = 'v4.0_TD3'
-measurement_number = '3'
+name = 'v4.1_TD3'
+measurement_number = '4'
 
 
 

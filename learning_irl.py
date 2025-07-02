@@ -66,14 +66,14 @@ ser = serial.Serial(serial_port, 115200, timeout=1)
 PID = kinematika.PID_controller(np.array([0,0]), np.array([0,0]), np.deg2rad(16), np.deg2rad(45), K_p, K_i, K_d)
 kamera_object = kamera.CV2Wrapper(camera_index=1, window_name='Webcam feed', camera_matrix=camera_matrix, distortion_coefficients=distortion_coefficients)
 communication_object = communicator_v2.SerialCommunication(ser=ser, normal_acceleration=acceleration)
-kamera_object.adjust_raw_exposure(-8.55) # value according to exposure_calibration_SCRIPT.py
+kamera_object.adjust_raw_exposure(-8.85) # value according to exposure_calibration_SCRIPT.py
 
 env = environment_v2.ManipulatorEnv(kamera_obj=kamera_object, comm_obj=communication_object, PID_obj=PID, feedrate=feedrate, delay=delay, show_feed=True, verbose=True)
 env = DummyVecEnv([lambda: env])
 
 # Load/create the VecNormalize object
-#env = VecNormalize.load(vec_file_pre, env)
-env = VecNormalize(env, norm_obs=True, norm_reward=True)
+env = VecNormalize.load(vec_file_pre, env)
+#env = VecNormalize(env, norm_obs=True, norm_reward=True)
 
 
 env.training = True 
@@ -82,14 +82,14 @@ env.norm_obs = True
 
 # Load the trained model
 #model = PPO("MlpPolicy", env, verbose=1)
-#model = TD3.load(model_file_pre, env=env)
-model = TD3("MlpPolicy", env, 
+model = TD3.load(model_file_pre, env=env)
+'''model = TD3("MlpPolicy", env, 
             buffer_size=50_000,          # Smaller buffer for faster updates (if short episodes)
             learning_starts=500,         # Start training earlier
             train_freq=(100, "step"),    # More frequent updates
             gradient_steps=64,           # More updates per train call
             batch_size=256,              # Larger batches
-            policy_kwargs=dict(net_arch=[256, 256]))
+            policy_kwargs=dict(net_arch=[256, 256]))'''
 
 obs = env.reset()
 done = False
